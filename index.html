@@ -2,12 +2,22 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.4.8 CLEAN SLATE</title>
+    <title>THE LAST BORDER | v7.4.9 100K SHARP</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
+        
+        /* KRİTİK: CSS seviyesinde piksel netliği */
+        canvas { 
+            background-color: #0d0d0d; 
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: pixelated;
+            image-rendering: optimizeSpeed;
+            cursor: crosshair; 
+        }
+
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); }
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #arsenal-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
@@ -21,7 +31,7 @@
     </style>
 </head>
 <body>
-    <div id="loading">HARD RESET IN PROGRESS...</div>
+    <div id="loading">CALIBRATING 100,000 SHARP SLOTS...</div>
     <div id="war-room">
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
@@ -42,19 +52,18 @@
     </div>
 
     <script>
-        // KESİN ÇÖZÜM: TÜM ESKİ VERİLERİ SİL
-        localStorage.clear(); 
-
+        // Resetleme işlemi v7.4.8'de yapıldığı için burayı temiz tutuyoruz
         const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: false });
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
 
-        const W = 4000, H = 2000, SLOT = 12.6; 
+        // 100.000 SLOT KALİBRASYONU (W*H / 100,000 = 80 -> sqrt(80) = 8.94)
+        const W = 4000, H = 2000, SLOT = 8.94; 
         canvas.width = W; canvas.height = H;
 
-        let ammo = 500; // Reset sonrası başlangıç mermisi
-        let gridData = {}; // Reset sonrası boş harita
+        let ammo = parseInt(localStorage.getItem('ammo_v7.4_final') || '1000');
+        let gridData = JSON.parse(localStorage.getItem('data_v7.4_final') || '{}');
         let customNations = [];
         const flagCache = {};
 
@@ -108,7 +117,7 @@
         window.addEventListener('mouseup', e => { if (isDragging && !dragMoved) handleConquer(e); isDragging = false; });
 
         function handleConquer(e) {
-            if (ammo <= 0) return alert("CEPHANE BİTTİ! DEVAM ETMEK İÇİN SATIN AL.");
+            if (ammo <= 0) return alert("CEPHANE BİTTİ!");
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
@@ -131,7 +140,12 @@
         }
 
         function render() {
+            // KRİTİK: JS seviyesinde netlik ayarları
             ctx.imageSmoothingEnabled = false;
+            ctx.mozImageSmoothingEnabled = false;
+            ctx.webkitImageSmoothingEnabled = false;
+            ctx.msImageSmoothingEnabled = false;
+
             ctx.clearRect(0, 0, W, H);
             ctx.drawImage(mapImg, 0, 0, W, H);
             for (let key in gridData) {
@@ -141,29 +155,17 @@
                 if(img) {
                     ctx.save();
                     ctx.globalCompositeOperation = "source-atop";
+                    // Piksel pikselline hizalama (Sub-pixel rendering engellendi)
                     ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), Math.ceil(SLOT), Math.ceil(SLOT));
                     ctx.restore();
                 }
             }
         }
 
-        // BU FONKSİYON YAKINDA CÜZDANA BAĞLANACAK
-        function buyAmmo(n) { 
-            console.log("PAYMENT REQUEST INITIATED...");
-            ammo += n; 
-            document.getElementById('ammoCount').innerText = ammo; 
-        }
-
-        function foundNation() {
-            const n = document.getElementById('customName').value, f = document.getElementById('customFlag').value;
-            if(!n || !f) return;
-            customNations.push({name: n, flag: f});
-            localStorage.setItem('custom_v7.4_final', JSON.stringify(customNations));
-            location.reload();
-        }
-
+        function buyAmmo(n) { ammo += n; document.getElementById('ammoCount').innerText = ammo; }
+        
         initNations();
-        setInterval(render, 3000);
+        setInterval(render, 4000); // 100K veri için render aralığını biraz artırdım
     </script>
 </body>
 </html>
