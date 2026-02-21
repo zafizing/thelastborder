@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.8.8 STABLE POPUP</title>
+    <title>THE LAST BORDER | v7.9.2 STABLE</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
@@ -10,41 +10,44 @@
         canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); }
         
-        /* SAĞ ALT BİLGİ PANELİ */
-        #pixel-intel { bottom: 20px; right: 20px; width: 220px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; }
-        
-        /* TIKLANAN YERDE ÇIKAN POP-UP */
+        /* POP-UP */
         #buy-popup { 
             position: absolute; z-index: 1000; display: none;
             background: #000; border: 2px solid #ff4500; padding: 12px;
             width: 180px; box-shadow: 0 0 20px rgba(255, 69, 0, 0.5);
-            pointer-events: auto;
         }
         .close-pop { position: absolute; top: 2px; right: 5px; cursor: pointer; color: #ff4500; font-size: 14px; }
         
-        .intel-label { color: #ff4500; font-weight: bold; }
-        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; font-weight: bold; border: none; transition: 0.2s; }
-        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; justify-content: center; align-items: center; color: #ff4500; }
-        #ui-overlay { top: 20px; left: 20px; width: 260px; }
+        #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #wallet-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
+        #pixel-intel { bottom: 20px; right: 20px; width: 220px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; }
+        
+        input, select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 8px; width: 100%; box-sizing: border-box; margin-top: 5px; font-family: inherit; font-size: 11px; }
+        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; font-weight: bold; border: none; }
+        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; justify-content: center; align-items: center; color: #ff4500; }
     </style>
 </head>
 <body>
-    <div id="loading">INITIALIZING POPUP SYSTEMS...</div>
+    <div id="loading">OPTIMIZING WAR ENGINE...</div>
     
     <div id="war-room">
         <div id="buy-popup">
             <span class="close-pop" onclick="closePopup()">×</span>
-            <div style="text-align: center; font-size: 12px;">
-                <div id="pop-title" style="color:#ff4500; font-weight:bold; margin-bottom:5px;">CONQUER PIXEL</div>
-                <div id="pop-price" style="color:#00ff00; font-size:14px; margin: 10px 0;">1.00 USD</div>
-                <button id="popBuyBtn" style="background: #ff4500; color: #fff;" onclick="handlePurchase()">PURCHASE NOW</button>
+            <div style="text-align: center;">
+                <div style="color:#ff4500; font-weight:bold; font-size:10px;">CONQUER PIXEL</div>
+                <div id="pop-price" style="color:#00ff00; font-size:14px; margin: 8px 0;">1.00 USD</div>
+                <button id="popBuyBtn" style="background: #ff4500; color: #fff;" onclick="handlePurchase(1)">PURCHASE</button>
             </div>
         </div>
 
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 14px;">WAR COMMAND</h2>
-            <select id="nationSelect" style="width:100%; margin-top:5px; background:#000; color:#00ff00; border:1px solid #00ff00;"></select>
+            <select id="nationSelect"></select>
+            <div id="state-creator" style="margin-top:15px; border-top: 1px dashed #444; padding-top: 10px;">
+                <input type="text" id="customName" placeholder="NATION NAME">
+                <input type="text" id="customFlag" placeholder="FLAG URL">
+                <button style="background: #00ff00; color: #000;" onclick="handlePurchase(100)">ESTABLISH STATE (100$)</button>
+            </div>
         </div>
 
         <div id="wallet-panel" class="panel">
@@ -53,7 +56,7 @@
         </div>
 
         <div id="pixel-intel" class="panel">
-            <div class="intel-label">TERRITORY INFO</div>
+            <div style="color:#ff4500; font-weight:bold;">INTEL REPORT</div>
             <div id="intel-owner">OWNER: UNCLAIMED</div>
             <div id="intel-coords">COORD: 0,0</div>
         </div>
@@ -82,40 +85,33 @@
         let walletAddress = null;
         let selectedKey = null;
 
-        async function updateSolPrice() {
-            try {
-                const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-                const data = await res.json();
-                CURRENT_SOL_USD = data.solana.usd;
-            } catch (e) {}
-        }
+        // DRAG VS CLICK tespiti için değişkenler
+        let mouseDownX, mouseDownY;
 
         async function connectWallet() {
             const provider = window.solflare || window.solana;
             if (!provider) return alert("Cüzdan bulunamadı!");
             try {
                 const resp = await provider.connect();
-                walletAddress = (resp.publicKey || provider.publicKey).toString();
+                const pubKey = resp.publicKey || provider.publicKey;
+                if(!pubKey) throw new Error("Public Key alınamadı");
+                walletAddress = pubKey.toString();
                 activeProvider = provider;
                 document.getElementById('wallet-status').innerText = "CONNECTED: " + walletAddress.slice(0,6);
                 document.getElementById('wallet-status').style.color = "#00ff00";
                 document.getElementById('connectBtn').style.display = "none";
-            } catch (err) { alert("Bağlantı reddedildi."); }
+            } catch (err) { alert("Cüzdan hatası: " + err.message); }
         }
 
-        async function handlePurchase() {
-            if (!walletAddress) return alert("Lütfen önce cüzdanınızı bağlayın!");
-            const currentPrice = gridPrices[selectedKey] || 1.00;
-            const solAmount = currentPrice / CURRENT_SOL_USD;
+        async function handlePurchase(priceType) {
+            if (!walletAddress) return alert("Bağlı cüzdan yok!");
+            
+            const priceUSD = (priceType === 100) ? 100 : (gridPrices[selectedKey] || 1.00);
+            const solAmount = priceUSD / CURRENT_SOL_USD;
             const lamports = Math.floor(solAmount * solanaWeb3.LAMPORTS_PER_SOL);
 
             try {
-                // RPC HATASINI ÇÖZEN KRİTİK DEĞİŞİKLİK: Cüzdanın kendi bağlantısını zorla
-                const connection = new solanaWeb3.Connection(
-                    activeProvider.connection?.rpcEndpoint || "https://api.mainnet-beta.solana.com", 
-                    'confirmed'
-                );
-                
+                const connection = new solanaWeb3.Connection("https://api.mainnet-beta.solana.com", 'confirmed');
                 const { blockhash } = await connection.getLatestBlockhash();
                 
                 const transaction = new solanaWeb3.Transaction().add(
@@ -129,51 +125,53 @@
                 transaction.recentBlockhash = blockhash;
                 transaction.feePayer = new solanaWeb3.PublicKey(walletAddress);
 
-                const { signature } = await activeProvider.signAndSendTransaction(transaction);
-                alert("İşlem gönderildi! İmza: " + signature.slice(0,8));
+                const signed = await activeProvider.signAndSendTransaction(transaction);
+                alert("Savaş fonu aktarıldı!");
                 
-                gridData[selectedKey] = document.getElementById('nationSelect').value;
-                gridPrices[selectedKey] = currentPrice * GROWTH_RATE;
-                localStorage.setItem('border_data_v7', JSON.stringify(gridData));
-                localStorage.setItem('border_prices_v7', JSON.stringify(gridPrices));
-                render();
+                if(priceType !== 100) {
+                    gridData[selectedKey] = document.getElementById('nationSelect').value;
+                    gridPrices[selectedKey] = priceUSD * GROWTH_RATE;
+                    localStorage.setItem('border_data_v7', JSON.stringify(gridData));
+                    localStorage.setItem('border_prices_v7', JSON.stringify(gridPrices));
+                    render();
+                }
                 closePopup();
-            } catch (err) {
-                console.error(err);
-                alert("Hata: Ağ şu an meşgul veya cüzdan reddetti. Lütfen tekrar deneyin.");
-            }
+            } catch (err) { alert("İşlem başarısız: " + err.message); }
         }
 
         function closePopup() { popup.style.display = 'none'; }
 
-        // --- HARİTA TIKLAMA VE POPUP KONUMLANDIRMA ---
-        canvas.addEventListener('click', e => {
-            const rect = canvas.getBoundingClientRect();
-            // Ekranda tıklandığı yer (Pop-up için)
-            const screenX = e.clientX;
-            const screenY = e.clientY;
+        // --- HARİTA ETKİLEŞİMİ ---
+        canvas.addEventListener('mousedown', e => {
+            mouseDownX = e.clientX;
+            mouseDownY = e.clientY;
+        });
 
-            // Canvas üzerinde hangi piksele denk geldiği (Veri için)
+        canvas.addEventListener('mouseup', e => {
+            // Sürükleme mesafesini ölç
+            const diffX = Math.abs(e.clientX - mouseDownX);
+            const diffY = Math.abs(e.clientY - mouseDownY);
+
+            // Eğer mouse 5 pikselden fazla hareket ettiyse bu bir sürüklemedir, tıklama değil.
+            if (diffX > 5 || diffY > 5) return;
+
+            const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
-
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             selectedKey = `${col},${row}`;
             
             let price = gridPrices[selectedKey] || 1.00;
-            
-            // Bilgi panelini güncelle
             document.getElementById('intel-coords').innerText = `COORD: ${selectedKey}`;
             document.getElementById('intel-owner').innerText = gridData[selectedKey] ? `OWNER: ${gridData[selectedKey].toUpperCase()}` : "OWNER: UNCLAIMED";
 
-            // Pop-up'ı tıklandığı yere getir ve göster
-            popup.style.left = `${screenX + 10}px`;
-            popup.style.top = `${screenY + 10}px`;
+            popup.style.left = `${e.clientX + 10}px`;
+            popup.style.top = `${e.clientY + 10}px`;
             document.getElementById('pop-price').innerText = price.toFixed(2) + " USD";
             popup.style.display = 'block';
         });
 
-        // ZOOM VE DRAG (Pop-up'ı sürüklerken kapatır ki kaymasın)
+        // ZOOM & DRAG
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
         let isDragging = false, startX, startY;
         function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
@@ -181,21 +179,21 @@
         window.addEventListener('mousedown', e => { 
             if(e.target.tagName === 'CANVAS') {
                 isDragging = true; startX = e.clientX - originX; startY = e.clientY - originY; 
-                closePopup();
             }
         });
-        window.addEventListener('mousemove', e => { if (isDragging) { originX = e.clientX - startX; originY = e.clientY - startY; updateTransform(); }});
+        window.addEventListener('mousemove', e => {
+            if (isDragging) { originX = e.clientX - startX; originY = e.clientY - startY; updateTransform(); closePopup(); }
+        });
         window.addEventListener('mouseup', () => isDragging = false);
         window.addEventListener('wheel', e => {
             e.preventDefault(); const old = scale;
             scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 30);
             originX = e.clientX - (e.clientX - originX) * (scale / old);
             originY = e.clientY - (e.clientY - originY) * (scale / old);
-            updateTransform();
-            closePopup();
+            updateTransform(); closePopup();
         }, { passive: false });
 
-        // --- İLK KURULUM ---
+        // --- INIT ---
         async function init() {
             const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
             const countries = await res.json();
@@ -207,7 +205,11 @@
                 img.src = `https://flagcdn.com/w80/${opt.value}.png`;
                 img.onload = () => { flagCache[opt.value] = img; render(); };
             });
-            await updateSolPrice();
+            try {
+                const pRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+                const pData = await pRes.json();
+                CURRENT_SOL_USD = pData.solana.usd;
+            } catch(e) {}
             document.getElementById('loading').style.display = 'none';
         }
 
@@ -224,7 +226,6 @@
             }
             ctx.save(); ctx.globalCompositeOperation = "destination-over"; ctx.drawImage(mapImg, 0, 0, W, H); ctx.restore();
         }
-
         init();
     </script>
 </body>
