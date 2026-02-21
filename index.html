@@ -2,33 +2,36 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v2.7 HARD-CODED</title>
+    <title>THE LAST BORDER | v3.0 ULTIMATE CORE</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
         #war-room { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
         canvas { background-color: #000; image-rendering: pixelated; }
         #ui {
             position: fixed; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(10, 10, 10, 0.95); padding: 20px; border: 1px solid #ff4500;
+            background: rgba(15, 15, 15, 0.95); padding: 20px; border: 1px solid #ff4500;
             width: 260px; color: #ff4500; box-shadow: 0 0 30px #000;
         }
         select { background: #000; color: #ff4500; border: 1px solid #ff4500; padding: 10px; width: 100%; margin-bottom: 10px; cursor: pointer; }
-        .info { font-size: 10px; color: #666; line-height: 1.5; }
+        .info { font-size: 11px; color: #888; line-height: 1.5; }
     </style>
 </head>
 <body>
 
 <div id="war-room">
     <div id="ui">
-        <h2 style="margin:0 0 10px 0; font-size:16px;">GOD MODE v2.7</h2>
-        <select id="nationSelect"></select>
+        <h2 style="margin:0 0 10px 0; font-size:18px;">CORE ENGINE v3.0</h2>
+        <select id="nationSelect">
+            <option value="tr">TÜRKİYE 🇹🇷</option>
+            <option value="az">AZERBAYCAN 🇦🇿</option>
+        </select>
         <div class="info">
             [DRAG] PAN (v1.0.6 STABLE)<br>
             [SCROLL] ZOOM TO CURSOR<br>
             [CLICK] CONQUER & MERGE
         </div>
-        <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; width:100%; background:none; border:1px solid #444; color:#444; font-size:9px; cursor:pointer;">SYSTEM PURGE</button>
+        <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; width:100%; background:none; border:1px solid #444; color:#444; font-size:10px; cursor:pointer;">SİSTEMİ SIFIRLA</button>
     </div>
     <div id="canvas-container">
         <canvas id="war-canvas"></canvas>
@@ -37,35 +40,31 @@
 
 <script>
     const canvas = document.getElementById('war-canvas');
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const ctx = canvas.getContext('2d');
     const container = document.getElementById('canvas-container');
-    const select = document.getElementById('nationSelect');
 
-    const WORLD_W = 4000, WORLD_H = 2000, SLOT = 15;
-    let gridData = JSON.parse(localStorage.getItem('world_conquest_v2.7') || '{}');
+    const W = 4000, H = 2000, SLOT = 20;
+    let gridData = JSON.parse(localStorage.getItem('world_core_v3') || '{}');
 
-    const nations = {"tr":"TÜRKİYE 🇹🇷","us":"USA 🇺🇸","az":"AZERBAIJAN 🇦🇿","ru":"RUSSIA 🇷🇺","de":"GERMANY 🇩🇪","cn":"CHINA 🇳","gb":"UK 🇬🇧","fr":"FRANCE 🇫🇷"};
-    Object.entries(nations).forEach(([code, name]) => {
-        let opt = document.createElement('option'); opt.value = code; opt.textContent = name; select.appendChild(opt);
-    });
+    canvas.width = W; canvas.height = H;
 
-    canvas.width = WORLD_W; canvas.height = WORLD_H;
-
-    // v1.0.6 KAMERA (HİÇ DOKUNULMADI)
-    let scale = 0.5, originX = (window.innerWidth - WORLD_W * scale) / 2, originY = (window.innerHeight - WORLD_H * scale) / 2;
+    // v1.0.6 KAMERA SİSTEMİ
+    let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
     let isDragging = false, startX, startY;
 
-    // --- HARİTA BURADA (GÖMÜLÜ SVG PATH) ---
-    // Kanka burası çok uzun olmasın diye basitleştirilmiş bir dünya haritası çizdiriyorum.
-    // Eğer bu gelirse, dünyanın tüm koordinatlarını içeren 1MB'lık dosyayı da gömeriz.
-    const worldPath = new Path2D("M500,500 L3500,500 L3500,1500 L500,1500 Z M600,600 L1200,600 L1200,900 L600,900 Z M1500,700 L2500,700 L2500,1200 L1500,1200 Z"); 
-    // Not: Bu temsilidir. Aşağıdaki render'da haritayı "geometrik" olarak çiziyoruz.
+    // GÖMÜLÜ COĞRAFYA (Basitleştirilmiş Dünya Haritası Koordinatları)
+    const continents = [
+        [1500,600, 800,400], // Avrasya temsili
+        [1600,1100, 400,500], // Afrika temsili
+        [500,700, 500,500],  // K. Amerika temsili
+        [800,1200, 400,600]   // G. Amerika temsili
+    ];
 
     function updateTransform() {
         container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
     }
 
-    // ZOOM & PAN (v1.0.6)
+    // NAVİGASYON (v1.0.6)
     window.addEventListener('wheel', (e) => {
         e.preventDefault();
         const delta = e.deltaY < 0 ? 1.1 : 0.9;
@@ -100,66 +99,71 @@
         const x = (e.clientX - originX) / scale;
         const y = (e.clientY - originY) / scale;
         
-        // Kara Kontrolü (Harita geometrisi içinde mi?)
-        if (!ctx.isPointInPath(worldPath, x, y)) return;
+        // Kara Kontrolü
+        let onLand = continents.some(c => x > c[0] && x < c[0]+c[2] && y > c[1] && y < c[1]+c[3]);
+        if (!onLand) return;
 
         const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
-        gridData[`${col},${row}`] = select.value;
-        localStorage.setItem('world_conquest_v2.7', JSON.stringify(gridData));
+        gridData[`${col},${row}`] = document.getElementById('nationSelect').value;
+        localStorage.setItem('world_core_v3', JSON.stringify(gridData));
         render();
     }
 
+    // BAYRAĞI KODLA ÇİZ (Resim Gerektirmez)
+    function drawFlagProcedural(nation, x, y, w, h) {
+        ctx.save();
+        if (nation === 'tr') {
+            ctx.fillStyle = '#E30A17';
+            ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = '#FFF';
+            // Ay
+            ctx.beginPath(); ctx.arc(x + w*0.4, y + h*0.5, h*0.25, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#E30A17';
+            ctx.beginPath(); ctx.arc(x + w*0.45, y + h*0.5, h*0.22, 0, Math.PI*2); ctx.fill();
+            // Yıldız
+            ctx.fillStyle = '#FFF';
+            ctx.beginPath();
+            let cx = x + w*0.65, cy = y + h*0.5, pts = 5, outer = h*0.12, inner = h*0.05;
+            for(let i=0; i<pts*2; i++){
+                let r = (i%2==0)?outer:inner;
+                let a = (Math.PI*2/ (pts*2)) * i - Math.PI/2;
+                ctx.lineTo(cx + Math.cos(a)*r, cy + Math.sin(a)*r);
+            }
+            ctx.closePath(); ctx.fill();
+        } else {
+            ctx.fillStyle = '#00b5e2'; ctx.fillRect(x, y, w, h/3);
+            ctx.fillStyle = '#ef3340'; ctx.fillRect(x, y + h/3, w, h/3);
+            ctx.fillStyle = '#509b2f'; ctx.fillRect(x, y + 2*h/3, w, h/3);
+        }
+        ctx.restore();
+    }
+
     function render() {
-        ctx.clearRect(0, 0, WORLD_W, WORLD_H);
+        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
         
-        // 1. DENİZ (ARKA PLAN)
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, WORLD_W, WORLD_H);
+        // Karaları Çiz
+        ctx.fillStyle = "#1a1a1a";
+        continents.forEach(c => ctx.fillRect(c[0], c[1], c[2], c[3]));
 
-        // 2. KARALAR (HARİTA)
-        ctx.fillStyle = "#222";
-        ctx.strokeStyle = "#444";
-        ctx.lineWidth = 2;
-        ctx.fill(worldPath);
-        ctx.stroke(worldPath);
-
-        // 3. MERGE & MASK
+        // Birleşme Algoritması
         const visited = new Set();
         for (let key in gridData) {
             if (visited.has(key)) continue;
             let [c, r] = key.split(',').map(Number);
             let nation = gridData[key];
-            let w = 1, h = 1;
-            while (gridData[`${c + w},${r}`] === nation) w++;
+            let cw = 1, ch = 1;
+            while (gridData[`${c + cw},${r}`] === nation) cw++;
             let canGrow = true;
             while (canGrow) {
-                for (let i = 0; i < w; i++) {
-                    if (gridData[`${c + i},${r + h}`] !== nation) { canGrow = false; break; }
-                }
-                if (canGrow) h++;
+                for (let i = 0; i < cw; i++) if (gridData[`${c + i},${r + ch}`] !== nation) { canGrow = false; break; }
+                if (canGrow) ch++;
             }
-            for (let i = 0; i < w; i++) {
-                for (let j = 0; j < h; j++) visited.add(`${c + i},${r + j}`);
-            }
-            drawFlag(nation, c * SLOT, r * SLOT, w * SLOT, h * SLOT);
+            for (let i = 0; i < cw; i++) for (let j = 0; j < ch; j++) visited.add(`${c + i},${r + j}`);
+
+            drawFlagProcedural(nation, c*SLOT, r*SLOT, cw*SLOT, ch*SLOT);
         }
     }
 
-    function drawFlag(nation, x, y, w, h) {
-        const flag = new Image();
-        flag.crossOrigin = "anonymous";
-        flag.src = `https://flagcdn.com/w320/${nation}.png`;
-        flag.onload = () => {
-            ctx.save();
-            // MASK: Bayrağı sadece harita geometrisinin içine çiz
-            ctx.clip(worldPath); 
-            ctx.imageSmoothingEnabled = false;
-            ctx.drawImage(flag, x, y, w, h);
-            ctx.restore();
-        };
-    }
-
-    // İlk açılış
     render();
     updateTransform();
 </script>
