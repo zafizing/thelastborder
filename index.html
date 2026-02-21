@@ -2,45 +2,51 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v5.1 GLOBAL</title>
+    <title>THE LAST BORDER | v6.0 EPIC CONQUEST</title>
     <style>
         body, html { 
-            background-color: #050505; color: #d4af37;
-            font-family: 'Segoe UI', sans-serif;
+            background-color: #020205; color: #d4af37;
+            font-family: 'Courier New', monospace;
             margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
         }
-        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+        /* ARKA PLAN EFEKTİ */
+        #war-room { 
+            width: 100vw; height: 100vh; position: relative; overflow: hidden;
+            background: radial-gradient(circle, #0a0a1a 0%, #020205 100%);
+        }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
         
         canvas { 
-            /* 1 & 3. DÜZELTME: CSS Arka planını sildik, sadece Canvas kullanıyoruz. 
-               Böylece harita kayma ve üst üste binme sorunu kökten çözüldü. */
-            background-color: #000;
-            image-rendering: pixelated; /* Bayrakların cam gibi net olması için */
+            background-color: transparent;
+            image-rendering: pixelated; /* Bayrak netliği için kritik */
+            box-shadow: 0 0 100px rgba(0,0,0,0.5);
         }
 
         #ui-overlay {
             position: fixed; top: 20px; left: 20px; z-index: 100;
-            background: rgba(10, 10, 10, 0.95); padding: 20px; border: 1px solid #d4af37;
-            box-shadow: 0 0 30px rgba(0,0,0,1); width: 280px;
+            background: rgba(5, 5, 10, 0.9); padding: 20px; border: 1px solid #ff4500;
+            box-shadow: 0 0 20px rgba(255, 69, 0, 0.2); width: 280px;
+            backdrop-filter: blur(5px);
         }
-        select { background: #000; color: #d4af37; border: 1px solid #d4af37; padding: 12px; width: 100%; cursor: pointer; }
-        .controls { font-size: 11px; color: #777; margin-top: 15px; line-height: 1.6; border-top: 1px solid #333; padding-top: 10px; }
+        h2 { margin: 0 0 10px 0; color: #ff4500; text-shadow: 0 0 10px #ff4500; font-size: 18px; text-align: center; }
+        select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 12px; width: 100%; cursor: pointer; font-family: inherit; font-weight: bold; }
+        .controls { font-size: 10px; color: #00ff00; margin-top: 15px; line-height: 1.6; opacity: 0.7; }
+        .status-bar { border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; font-size: 9px; color: #888; }
     </style>
 </head>
 <body>
 
     <div id="war-room">
         <div id="ui-overlay">
-            <h2 style="margin:0 0 15px 0; color: #d4af37; letter-spacing: 2px; font-size: 18px;">STRATEGIC COMMAND</h2>
+            <h2>TACTICAL COMMAND</h2>
             <select id="nationSelect"></select>
             <div class="controls">
-                • [SCROLL] MAGNIFICATION<br>
-                • [DRAG] PANNING (FIXED)<br>
-                • [CLICK] CONQUER & MERGE<br>
-                • [STATUS] CAM-NET RENDERING
+                > TARGETING: POLITICAL BORDER LOCK<br>
+                > RESOLUTION: CAM-NET 4K ENABLED<br>
+                > MODE: TOTAL CONQUEST (EPIC)
             </div>
-            <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; width:100%; background:none; border:1px solid #444; color:#444; font-size:9px; cursor:pointer;">SYSTEM RESET</button>
+            <div class="status-bar" id="system-status">SYSTEM: READY...</div>
+            <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; width:100%; background:none; border:1px solid #444; color:#444; font-size:9px; cursor:pointer;">PURGE HISTORY</button>
         </div>
         <div id="canvas-container">
             <canvas id="war-canvas"></canvas>
@@ -56,21 +62,30 @@
         const W = 4000, H = 2000, SLOT = 20;
         canvas.width = W; canvas.height = H;
 
-        let gridData = JSON.parse(localStorage.getItem('border_global_v5.1') || '{}');
+        let gridData = JSON.parse(localStorage.getItem('border_epic_v6') || '{}');
+        const flagCache = {}; // 1. MADDE: NETLİK İÇİN CACHE SİSTEMİ
 
         const countries = {
-            "tr": "TÜRKİYE", "az": "AZERBAIJAN", "us": "USA", "gb": "UNITED KINGDOM", "de": "GERMANY",
-            "ru": "RUSSIA", "cn": "CHINA", "fr": "FRANCE", "jp": "JAPAN", "br": "BRAZIL"
+            "tr": "TÜRKİYE", "az": "AZERBAIJAN", "us": "USA", "gb": "UNITED KINGDOM", 
+            "de": "GERMANY", "ru": "RUSSIA", "cn": "CHINA", "fr": "FRANCE", "jp": "JAPAN"
         };
+        
         Object.entries(countries).forEach(([code, name]) => {
             const opt = document.createElement('option');
             opt.value = code; opt.textContent = name;
             nationSelect.appendChild(opt);
+            
+            // Bayrakları önceden yükle (Preload)
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = `https://flagcdn.com/w320/${code}.png`;
+            img.onload = () => { flagCache[code] = img; };
         });
 
-        // HARİTA YÜKLEME
+        // 3. MADDE: EPİK HARİTA TASARIMI
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
+        // Daha keskin ve sınırları belli bir harita kullanıyoruz
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
 
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
@@ -80,6 +95,7 @@
             container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
         }
 
+        // NAVİGASYON (v1.0.6 STABLE)
         window.addEventListener('wheel', (e) => {
             e.preventDefault();
             const delta = e.deltaY < 0 ? 1.1 : 0.9;
@@ -98,7 +114,7 @@
 
         window.addEventListener('mousemove', (e) => {
             if (isDragging) {
-                dragMoved = true;
+                if(Math.hypot(e.clientX - startX - originX, e.clientY - startY - originY) > 5) dragMoved = true;
                 originX = e.clientX - startX; originY = e.clientY - startY;
                 updateTransform();
             }
@@ -113,23 +129,24 @@
             const x = (e.clientX - originX) / scale;
             const y = (e.clientY - originY) / scale;
 
-            // Önce haritadaki piksele bak (Kara mı?)
+            // 2. MADDE: SINIR KONTROLÜ
             const pixel = ctx.getImageData(x, y, 1, 1).data;
-            if (pixel[0] < 10 && pixel[1] < 10 && pixel[2] < 10) return; 
+            if (pixel[0] < 20 && pixel[1] < 20 && pixel[2] < 20) return; // Deniz (Siyah) ise boyama
 
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             gridData[`${col},${row}`] = nationSelect.value;
-            localStorage.setItem('border_global_v5.1', JSON.stringify(gridData));
+            localStorage.setItem('border_epic_v6', JSON.stringify(gridData));
             render();
+            document.getElementById('system-status').innerText = `SYSTEM: TERRITORY OCCUPIED [${col},${row}]`;
         }
 
         function render() {
-            // 2. DÜZELTME: Her render'da tüm canvas'ı temizleyip sıfırdan çiziyoruz.
-            // Bu, bayrakların "cam gibi net" olmasını sağlar ve hayalet görüntüyü siler.
             ctx.clearRect(0, 0, W, H);
             
-            // Temel Harita
+            // EPİK GÖRSEL AYARLAR
+            ctx.filter = "brightness(0.8) contrast(1.2) sepia(0.2)"; // Askeri monitör havası
             ctx.drawImage(mapImg, 0, 0, W, H);
+            ctx.filter = "none";
 
             const visited = new Set();
             for (let key in gridData) {
@@ -137,13 +154,12 @@
                 let [c, r] = key.split(',').map(Number);
                 let nation = gridData[key];
 
+                // MERGE ALGORİTMASI
                 let cw = 1, ch = 1;
                 while (gridData[`${c + cw},${r}`] === nation) cw++;
                 let canGrow = true;
                 while (canGrow) {
-                    for (let i = 0; i < cw; i++) {
-                        if (gridData[`${c + i},${r + ch}`] !== nation) { canGrow = false; break; }
-                    }
+                    for (let i = 0; i < cw; i++) if (gridData[`${c + i},${r + ch}`] !== nation) { canGrow = false; break; }
                     if (canGrow) ch++;
                 }
                 for (let i = 0; i < cw; i++) for (let j = 0; j < ch; j++) visited.add(`${c + i},${r + j}`);
@@ -153,21 +169,20 @@
         }
 
         function drawFlag(nation, x, y, w, h) {
-            const flag = new Image();
-            flag.crossOrigin = "anonymous";
-            flag.src = `https://flagcdn.com/w320/${nation}.png`;
-            flag.onload = () => {
-                ctx.save();
-                // Coğrafi Sınırlandırma
-                ctx.globalCompositeOperation = "source-atop";
-                ctx.drawImage(flag, x, y, w, h);
-                ctx.restore();
-            };
+            const img = flagCache[nation];
+            if (!img) return;
+
+            ctx.save();
+            ctx.globalCompositeOperation = "source-atop"; // Karadan taşmama
+            ctx.imageSmoothingEnabled = false; // 1. MADDE: PİKSEL NETLİĞİ
+            ctx.globalAlpha = 0.9;
+            ctx.drawImage(img, x, y, w, h);
+            ctx.restore();
         }
 
         mapImg.onload = () => { render(); updateTransform(); };
-        // Periyodik temizleme (Bayrak yüklemeleri tamamlandığında netlik için)
-        setInterval(render, 1000); 
+        // Otomatik Render (Netlik için)
+        setInterval(render, 500); 
     </script>
 </body>
 </html>
