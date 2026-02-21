@@ -2,18 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.3 SUPREME</title>
+    <title>THE LAST BORDER | v7.4 TRUE BORDER</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
         canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
 
-        .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); box-shadow: 0 0 20px rgba(255,69,0,0.2); }
+        .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); }
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #arsenal-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
         
-        select, input, button { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; outline: none; }
+        select, input, button { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; }
         .ammo-display { font-size: 28px; color: #00ff00; text-align: center; margin: 10px 0; text-shadow: 0 0 10px #00ff00; font-weight: bold; }
         .btn-buy { background: #00ff00; color: #000; font-weight: bold; border: none; }
         .btn-found { background: #ff4500; color: #fff; font-weight: bold; border: none; margin-top: 15px; }
@@ -24,7 +24,7 @@
 </head>
 <body>
 
-    <div id="loading">SYNCHRONIZING GLOBAL WAR DATA...</div>
+    <div id="loading">CALIBRATING BORDER SENSORS...</div>
 
     <div id="war-room">
         <div id="ui-overlay" class="panel">
@@ -34,7 +34,7 @@
             <div style="margin-top:20px; border-top: 1px dashed #444; padding-top: 10px;">
                 <label style="font-size: 9px;">FOUND NATION (0.1 SOL):</label>
                 <input type="text" id="customName" placeholder="NATION NAME">
-                <input type="text" id="customFlag" placeholder="FLAG URL (PNG/JPG)">
+                <input type="text" id="customFlag" placeholder="FLAG URL">
                 <button class="btn-found" onclick="foundNation()">ESTABLISH STATE</button>
             </div>
         </div>
@@ -42,8 +42,8 @@
         <div id="arsenal-panel" class="panel">
             <h2 style="margin:0; color: #00ff00; font-size: 16px; text-align: center;">ARSENAL</h2>
             <div class="ammo-display" id="ammoCount">0</div>
-            <button class="btn-buy" onclick="buyAmmo(500, 0.1)">+500 PX (0.1 SOL)</button>
-            <button class="btn-buy" onclick="buyAmmo(2000, 0.3)">+2000 PX (0.3 SOL)</button>
+            <button class="btn-buy" onclick="buyAmmo(500, 0.1)">+500 PX</button>
+            <button class="btn-buy" onclick="buyAmmo(2000, 0.3)">+2000 PX</button>
         </div>
 
         <div id="intel-panel">COORD: 0,0 | STATUS: STANDBY</div>
@@ -56,14 +56,15 @@
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
 
-        const W = 4000, H = 2000, SLOT = 20; // Stabil birleşme için 20 ideal
+        const W = 4000, H = 2000, SLOT = 20;
         canvas.width = W; canvas.height = H;
 
-        let ammo = parseInt(localStorage.getItem('ammo_v7.3') || '500');
-        let gridData = JSON.parse(localStorage.getItem('data_v7.3') || '{}');
-        let customNations = JSON.parse(localStorage.getItem('custom_v7.3') || '[]');
+        let ammo = parseInt(localStorage.getItem('ammo_v7.4') || '500');
+        let gridData = JSON.parse(localStorage.getItem('data_v7.4') || '{}');
+        let customNations = JSON.parse(localStorage.getItem('custom_v7.4') || '[]');
         const flagCache = {};
 
+        // 1. DÜNYA ÜLKELERİ + ÖZEL LİSTE
         async function initNations() {
             try {
                 const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
@@ -79,9 +80,7 @@
                     img.onload = () => { flagCache[code] = img; };
                 };
 
-                // Önce özel ülkeler
                 customNations.forEach(n => addOpt(n.flag, n.name.toUpperCase(), "PRIVATE"));
-                // Sonra dünya ülkeleri
                 countries.forEach(c => {
                     let code = c.cca2.toLowerCase();
                     let name = (code === "tr") ? "TÜRKİYE" : c.name.common.toUpperCase();
@@ -96,21 +95,20 @@
         async function foundNation() {
             const name = document.getElementById('customName').value;
             const flag = document.getElementById('customFlag').value;
-            if(!name || !flag) return alert("Fill all fields!");
-            if(window.solana) {
-                customNations.push({name, flag});
-                localStorage.setItem('custom_v7.3', JSON.stringify(customNations));
-                location.reload();
-            } else { alert("Phantom Required."); }
+            if(!name || !flag) return;
+            customNations.push({name, flag});
+            localStorage.setItem('custom_v7.4', JSON.stringify(customNations));
+            location.reload();
         }
 
-        async function buyAmmo(amount, price) {
-            ammo += amount; localStorage.setItem('ammo_v7.3', ammo);
+        async function buyAmmo(amount) {
+            ammo += amount; localStorage.setItem('ammo_v7.4', ammo);
             document.getElementById('ammoCount').innerText = ammo;
         }
 
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
+        // BORDER LOCK İÇİN DAHA NET SINIRLI HARİTA
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
 
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
@@ -135,24 +133,37 @@
 
         function handleConquer(e) {
             if (ammo <= 0) return alert("NO AMMO!");
-            const x = (e.clientX - originX) / scale, y = (e.clientY - originY) / scale;
-            const p = ctx.getImageData(x, y, 1, 1).data;
-            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; // Deniz kilidi
+            const x = (e.clientX - originX) / scale;
+            const y = (e.clientY - originY) / scale;
+
+            // --- BORDER LOCK SENSORS (TRUE CLASSIFICATION) ---
+            // Haritayı geçici bir buffer'a çizip rengi kontrol ediyoruz
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = W; offCanvas.height = H;
+            const offCtx = offCanvas.getContext('2d');
+            offCtx.drawImage(mapImg, 0, 0, W, H);
+            const p = offCtx.getImageData(x, y, 1, 1).data;
+            
+            // Eğer tıkalan yer Siyah (Deniz) ise veya şeffafsa iptal et
+            // (Harita gri/beyaz kara, siyah deniz olduğu için RGB toplamı 50 altı denizdir)
+            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; 
 
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             if (gridData[`${col},${row}`]) return;
 
-            ammo--; localStorage.setItem('ammo_v7.3', ammo);
+            ammo--; localStorage.setItem('ammo_v7.4', ammo);
             document.getElementById('ammoCount').innerText = ammo;
             gridData[`${col},${row}`] = nationSelect.value;
-            localStorage.setItem('data_v7.3', JSON.stringify(gridData));
+            localStorage.setItem('data_v7.4', JSON.stringify(gridData));
             render();
         }
 
         function render() {
             ctx.clearRect(0, 0, W, H);
+            
+            // 1. Haritayı baz olarak çiz
             ctx.drawImage(mapImg, 0, 0, W, H);
-            ctx.imageSmoothingEnabled = false; // NETLİK AKTİF
+            ctx.imageSmoothingEnabled = false;
 
             const visited = new Set();
             for (let key in gridData) {
@@ -160,7 +171,7 @@
                 let [c, r] = key.split(',').map(Number);
                 let nation = gridData[key];
 
-                // BİRLEŞME (MERGE) ALGORİTMASI GERİ GELDİ
+                // MERGE ALGORİTMASI (Keskinlik için geri geldi)
                 let cw = 1, ch = 1;
                 while (gridData[`${c + cw},${r}`] === nation) cw++;
                 let canGrow = true;
@@ -173,7 +184,8 @@
                 const img = flagCache[nation];
                 if(img) {
                     ctx.save();
-                    ctx.globalCompositeOperation = "source-atop"; // SINIR KİLİDİ AKTİF
+                    // GLOBAL COMPOSITE MASKING (Sadece karaya çiz)
+                    ctx.globalCompositeOperation = "source-atop";
                     ctx.drawImage(img, c * SLOT, r * SLOT, cw * SLOT, ch * SLOT);
                     ctx.restore();
                 }
@@ -182,7 +194,7 @@
 
         initNations();
         mapImg.onload = () => { render(); updateTransform(); };
-        setInterval(render, 1000);
+        setInterval(render, 1500);
     </script>
 </body>
 </html>
