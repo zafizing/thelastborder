@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.7 WAR ZONE</title>
+    <title>THE LAST BORDER | v7.8 GRID</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
@@ -16,7 +16,7 @@
         select, input, button { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; outline: none; }
         .ammo-display { font-size: 28px; color: #00ff00; text-align: center; margin: 10px 0; text-shadow: 0 0 10px #00ff00; font-weight: bold; }
         .btn-buy { background: #00ff00; color: #000; font-weight: bold; border: none; }
-        .btn-reset { background: #ff0000; color: #fff; border: none; font-size: 10px; margin-top: 10px; }
+        .btn-found { background: #ff4500; color: #fff; font-weight: bold; border: none; margin-top: 15px; }
         
         #intel-panel { position: fixed; bottom: 20px; left: 20px; font-size: 11px; color: #ff4500; pointer-events: none; background: rgba(0,0,0,0.7); padding: 5px; }
         #loading { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; justify-content: center; align-items: center; color: #ff4500; }
@@ -24,26 +24,23 @@
 </head>
 <body>
 
-    <div id="loading">CALIBRATING BATTLEFIELD...</div>
+    <div id="loading">CALIBRATING GRID SENSORS...</div>
 
     <div id="war-room">
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
             <select id="nationSelect"></select>
-            
-            <button class="btn-reset" onclick="resetWorld()">ERASE ALL MEMORY (RESET)</button>
-
             <div style="margin-top:20px; border-top: 1px dashed #444; padding-top: 10px;">
                 <input type="text" id="customName" placeholder="NATION NAME">
                 <input type="text" id="customFlag" placeholder="FLAG URL">
-                <button onclick="foundNation()" style="background:#ff4500; color:white; border:none; margin-top:5px; padding:10px; width:100%;">ESTABLISH STATE</button>
+                <button class="btn-found" onclick="foundNation()">FOUND NATION</button>
             </div>
         </div>
 
         <div id="arsenal-panel" class="panel">
             <h2 style="margin:0; color: #00ff00; font-size: 16px; text-align: center;">ARSENAL</h2>
             <div class="ammo-display" id="ammoCount">0</div>
-            <button class="btn-buy" onclick="buyAmmo(500)">+500 PX</button>
+            <button class="btn-buy" onclick="buyAmmo(1000)">+1000 PX</button>
         </div>
 
         <div id="intel-panel">COORD: 0,0 | STATUS: STANDBY</div>
@@ -59,9 +56,9 @@
         const W = 4000, H = 2000, SLOT = 20;
         canvas.width = W; canvas.height = H;
 
-        let ammo = parseInt(localStorage.getItem('ammo_v7.4') || '500');
-        let gridData = JSON.parse(localStorage.getItem('data_v7.4') || '{}');
-        let customNations = JSON.parse(localStorage.getItem('custom_v7.4') || '[]');
+        let ammo = parseInt(localStorage.getItem('supreme_ammo') || '500');
+        let gridData = JSON.parse(localStorage.getItem('supreme_data') || '{}');
+        let customNations = JSON.parse(localStorage.getItem('supreme_custom') || '[]');
         const flagCache = {};
 
         async function initNations() {
@@ -70,29 +67,25 @@
                 const countries = await res.json();
                 countries.sort((a, b) => a.name.common.localeCompare(b.name.common));
 
-                const addOpt = (code, name) => {
+                const addOpt = (code, name, group) => {
                     const opt = document.createElement('option');
-                    opt.value = code; opt.textContent = (code === 'tr' ? "TÜRKİYE" : name.toUpperCase());
+                    opt.value = code; opt.textContent = `${group}: ${name}`;
                     nationSelect.appendChild(opt);
                     const img = new Image(); img.crossOrigin = "anonymous";
                     img.src = code.startsWith('http') ? code : `https://flagcdn.com/w320/${code}.png`;
                     img.onload = () => { flagCache[code] = img; };
                 };
 
-                customNations.forEach(n => addOpt(n.flag, n.name));
-                countries.forEach(c => addOpt(c.cca2.toLowerCase(), c.name.common));
+                customNations.forEach(n => addOpt(n.flag, n.name.toUpperCase(), "PRIVATE"));
+                countries.forEach(c => {
+                    let code = c.cca2.toLowerCase();
+                    let name = (code === "tr") ? "TÜRKİYE" : c.name.common.toUpperCase();
+                    addOpt(code, name, "GLOBAL");
+                });
 
                 document.getElementById('ammoCount').innerText = ammo;
                 document.getElementById('loading').style.display = 'none';
-            } catch (e) { alert("API Error."); }
-        }
-
-        function resetWorld() {
-            if(confirm("BÜTÜN DÜNYAYI SIFIRLAMAK İSTEDİĞİNE EMİN MİSİN?")) {
-                localStorage.removeItem('data_v7.4');
-                gridData = {};
-                render();
-            }
+            } catch (e) {}
         }
 
         async function foundNation() {
@@ -100,12 +93,12 @@
             const flag = document.getElementById('customFlag').value;
             if(!name || !flag) return;
             customNations.push({name, flag});
-            localStorage.setItem('custom_v7.4', JSON.stringify(customNations));
+            localStorage.setItem('supreme_custom', JSON.stringify(customNations));
             location.reload();
         }
 
-        function buyAmmo(amount) {
-            ammo += amount; localStorage.setItem('ammo_v7.4', ammo);
+        function buyAmmo(amt) {
+            ammo += amt; localStorage.setItem('supreme_ammo', ammo);
             document.getElementById('ammoCount').innerText = ammo;
         }
 
@@ -131,35 +124,41 @@
         window.addEventListener('mouseup', e => { if (isDragging && !dragMoved) handleConquer(e); isDragging = false; });
 
         function handleConquer(e) {
-            if (ammo <= 0) return alert("NO AMMO!");
+            if (ammo <= 0) return;
             const x = (e.clientX - originX) / scale;
             const y = (e.clientY - originY) / scale;
 
-            const offCanvas = document.createElement('canvas');
-            offCanvas.width = W; offCanvas.height = H;
-            const offCtx = offCanvas.getContext('2d');
-            offCtx.drawImage(mapImg, 0, 0, W, H);
-            const p = offCtx.getImageData(x, y, 1, 1).data;
-            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; 
+            const offCanvas = document.createElement('canvas'); offCanvas.width = 1; offCanvas.height = 1;
+            const oCtx = offCanvas.getContext('2d');
+            oCtx.drawImage(mapImg, x, y, 1, 1, 0, 0, 1, 1);
+            if (oCtx.getImageData(0,0,1,1).data[0] < 50) return;
 
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
-            
-            // --- WAR ZONE UPDATE: OVERWRITE RIVALS ---
-            // Eğer tıkladığın yer zaten senin ülkenleyse mermi harcama
-            if (gridData[`${col},${row}`] === nationSelect.value) return;
+            if (gridData[`${col},${row}`]) return;
 
-            ammo--; localStorage.setItem('ammo_v7.4', ammo);
+            ammo--; localStorage.setItem('supreme_ammo', ammo);
             document.getElementById('ammoCount').innerText = ammo;
             gridData[`${col},${row}`] = nationSelect.value;
-            localStorage.setItem('data_v7.4', JSON.stringify(gridData));
+            localStorage.setItem('supreme_data', JSON.stringify(gridData));
             render();
         }
 
         function render() {
             ctx.clearRect(0, 0, W, H);
-            ctx.drawImage(mapImg, 0, 0, W, H);
-            ctx.imageSmoothingEnabled = false;
+            
+            // 1. IZGARA (GRID) ÇİZİMİ
+            ctx.strokeStyle = "rgba(255,255,255,0.05)";
+            ctx.lineWidth = 1;
+            for(let i=0; i<=W; i+=SLOT) { ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,H); ctx.stroke(); }
+            for(let j=0; j<=H; j+=SLOT) { ctx.beginPath(); ctx.moveTo(0,j); ctx.lineTo(W,j); ctx.stroke(); }
 
+            // 2. DENİZ-KARA SINIRI (WHITE GLOW/OUTLINE)
+            ctx.shadowColor = "white";
+            ctx.shadowBlur = 2;
+            ctx.drawImage(mapImg, 0, 0, W, H);
+            ctx.shadowBlur = 0;
+
+            // 3. BAYRAKLAR
             const visited = new Set();
             for (let key in gridData) {
                 if (visited.has(key)) continue;
@@ -179,8 +178,17 @@
                 if(img) {
                     ctx.save();
                     ctx.globalCompositeOperation = "source-atop";
-                    // Basit ve Kaymayan Çizim
-                    ctx.drawImage(img, c * SLOT, r * SLOT, cw * SLOT, ch * SLOT);
+                    const areaW = cw * SLOT, areaH = ch * SLOT;
+                    const areaX = c * SLOT, areaY = r * SLOT;
+                    
+                    // Bayrak Merkeze ve Orantılı
+                    let s = Math.min(areaW / img.width, areaH / img.height) * 0.95;
+                    let finalW = img.width * s, finalH = img.height * s;
+                    ctx.drawImage(img, areaX + (areaW - finalW)/2, areaY + (areaH - finalH)/2, finalW, finalH);
+                    
+                    // Piksel sınırını belli etmek için bayrak etrafına ince çerçeve
+                    ctx.strokeStyle = "rgba(255,255,255,0.2)";
+                    ctx.strokeRect(areaX, areaY, areaW, areaH);
                     ctx.restore();
                 }
             }
