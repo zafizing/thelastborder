@@ -1,121 +1,195 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<title>STRATEGIC MAP v4.1 OFFLINE</title>
-<style>
-html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Courier}
-#container{position:absolute;transform-origin:0 0}
-canvas{position:absolute;top:0;left:0;image-rendering:pixelated}
-#ui{
-position:fixed;top:20px;left:20px;z-index:9999;
-background:rgba(10,10,10,.9);
-border:1px solid #ff4500;
-padding:15px;width:240px;color:#ff4500
-}
-select{width:100%;padding:8px;background:#000;color:#ff4500;border:1px solid #ff4500}
-button{width:100%;margin-top:10px;background:none;border:1px solid #444;color:#444}
-</style>
+    <meta charset="UTF-8">
+    <title>THE LAST BORDER | v4.0 Redraw</title>
+    <style>
+        body, html { 
+            background-color: #000; color: #d4af37;
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+        }
+        
+        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+        
+        #canvas-container { 
+            position: absolute; transform-origin: 0 0; will-change: transform;
+        }
+
+        canvas { 
+            /* SENİN ÇÖZÜMÜN: Haritayı CSS arka planı yaparak CORS'u bypass ediyoruz */
+            background-image: url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg');
+            background-size: cover;
+            background-color: #0d0d0d;
+            image-rendering: pixelated;
+        }
+
+        #ui-overlay {
+            position: fixed; top: 20px; left: 20px; z-index: 100;
+            background: rgba(15, 15, 15, 0.95); padding: 20px; border: 1px solid #d4af37;
+            box-shadow: 0 0 20px rgba(0,0,0,0.8); width: 250px;
+        }
+        select { background: #000; color: #d4af37; border: 1px solid #d4af37; padding: 10px; width: 100%; font-size: 1rem; cursor: pointer; }
+        .controls { font-size: 0.7rem; color: #888; margin-top: 15px; line-height: 1.4; }
+    </style>
 </head>
 <body>
 
-<div id="ui">
-<h3>STRATEGIC MAP v4.1</h3>
-<select id="nation">
-<option value="tr">TÜRKİYE 🇹🇷</option>
-<option value="az">AZERBAYCAN 🇦🇿</option>
-</select>
-<button onclick="localStorage.clear();location.reload()">PURGE DATA</button>
-</div>
+    <div id="war-room">
+        <div id="ui-overlay">
+            <h2 style="margin:0 0 10px 0; color: #ff4500; font-size: 1.2rem;">COMMAND CENTER</h2>
+            <select id="nationSelect">
+                <option value="tr">TÜRKİYE 🇹🇷</option>
+                <option value="az">AZERBAYCAN 🇦🇿</option>
+                <option value="us">USA 🇺🇸</option>
+                <option value="de">GERMANY 🇩🇪</option>
+            </select>
+            <div class="controls">
+                • [v1.0.6 STABLE NAVIGATION]<br>
+                • DRAG: Pan (1:1 Sync)<br>
+                • SCROLL: Zoom to Cursor<br>
+                • CLICK: Conquer & Auto-Merge
+            </div>
+            <button onclick="localStorage.clear(); location.reload();" style="margin-top:15px; width:100%; background:none; border:1px solid #444; color:#666; cursor:pointer; font-size:10px;">RESET PROGRESS</button>
+        </div>
+        <div id="canvas-container">
+            <canvas id="war-canvas"></canvas>
+        </div>
+    </div>
 
-<div id="container">
-<canvas id="map" width="4000" height="2000"></canvas>
-<canvas id="paint" width="4000" height="2000"></canvas>
-</div>
+    <script>
+        const canvas = document.getElementById('war-canvas');
+        const ctx = canvas.getContext('2d');
+        const container = document.getElementById('canvas-container');
+        const nationSelect = document.getElementById('nationSelect');
 
-<script>
-const W=4000,H=2000,SLOT=20;
-const map=document.getElementById("map");
-const paint=document.getElementById("paint");
-const mctx=map.getContext("2d");
-const pctx=paint.getContext("2d");
-pctx.imageSmoothingEnabled=false;
+        // Sabitler
+        const W = 4000;
+        const H = 2000;
+        const SLOT = 20; // Bayrak birim boyutu
+        
+        canvas.width = W;
+        canvas.height = H;
 
-const container=document.getElementById("container");
-const nation=document.getElementById("nation");
+        let gridData = JSON.parse(localStorage.getItem('border_data_v4') || '{}');
 
-let scale=0.4;
-let ox=(window.innerWidth-W*scale)/2;
-let oy=(window.innerHeight-H*scale)/2;
+        // v1.0.6 STABLE NAV LOGIC
+        let scale = 0.5;
+        let originX = (window.innerWidth - W * scale) / 2;
+        let originY = (window.innerHeight - H * scale) / 2;
+        let isDragging = false;
+        let startX, startY;
 
-let drag=false,sx,sy,moved=false;
-let grid=JSON.parse(localStorage.getItem("world_v41")||"{}");
+        function updateTransform() {
+            container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+        }
 
-function update(){container.style.transform=`translate(${ox}px,${oy}px) scale(${scale})`;}
+        // ZOOM (Fare Odaklı)
+        window.addEventListener('wheel', (e) => {
+            e.preventDefault();
+            const delta = e.deltaY < 0 ? 1.15 : 0.85;
+            const oldScale = scale;
+            scale = Math.min(Math.max(0.1, scale * delta), 10);
+            
+            originX = e.clientX - (e.clientX - originX) * (scale / oldScale);
+            originY = e.clientY - (e.clientY - originY) * (scale / oldScale);
+            updateTransform();
+        }, { passive: false });
 
-window.onwheel=e=>{
-e.preventDefault();
-const z=e.deltaY<0?1.1:0.9;
-const old=scale;
-scale=Math.min(Math.max(0.1,scale*z),8);
-ox=e.clientX-(e.clientX-ox)*(scale/old);
-oy=e.clientY-(e.clientY-oy)*(scale/old);
-update();
-};
+        // PANNING (Sürükleme)
+        window.addEventListener('mousedown', (e) => {
+            if(e.target.closest('#ui-overlay')) return;
+            isDragging = true;
+            startX = e.clientX - originX;
+            startY = e.clientY - originY;
+        });
 
-window.onmousedown=e=>{
-if(e.target.closest("#ui"))return;
-drag=true;sx=e.clientX;sy=e.clientY;moved=false;
-};
-window.onmousemove=e=>{
-if(!drag)return;
-if(Math.hypot(e.clientX-sx,e.clientY-sy)>2)moved=true;
-ox+=e.clientX-sx;oy+=e.clientY-sy;
-sx=e.clientX;sy=e.clientY;
-update();
-};
-window.onmouseup=e=>{
-if(drag&&!moved)deploy(e);
-drag=false;
-};
+        window.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                originX = e.clientX - startX;
+                originY = e.clientY - startY;
+                updateTransform();
+            }
+        });
 
-function drawBaseMap(){
-mctx.fillStyle="#000";
-mctx.fillRect(0,0,W,H);
+        window.addEventListener('mouseup', (e) => {
+            if (isDragging) {
+                const moved = Math.hypot(e.clientX - (startX + originX), e.clientY - (startY + originY));
+                if (moved < 5) handleConquer(e);
+            }
+            isDragging = false;
+        });
 
-// basit kara alan simülasyonu (offline world silhouette)
-mctx.fillStyle="#555";
-mctx.fillRect(200,200,3600,1600);
-}
+        function handleConquer(e) {
+            const x = (e.clientX - originX) / scale;
+            const y = (e.clientY - originY) / scale;
 
-function isLand(x,y){
-const p=mctx.getImageData(x,y,1,1).data;
-return p[0]>50;
-}
+            const col = Math.floor(x / SLOT);
+            const row = Math.floor(y / SLOT);
 
-function deploy(e){
-const x=(e.clientX-ox)/scale;
-const y=(e.clientY-oy)/scale;
-if(!isLand(x,y))return;
-const c=Math.floor(x/SLOT);
-const r=Math.floor(y/SLOT);
-grid[c+","+r]=nation.value;
-localStorage.setItem("world_v41",JSON.stringify(grid));
-render();
-}
+            gridData[`${col},${row}`] = nationSelect.value;
+            localStorage.setItem('border_data_v4', JSON.stringify(gridData));
+            render();
+        }
 
-function render(){
-pctx.clearRect(0,0,W,H);
-for(const k in grid){
-const [c,r]=k.split(",").map(Number);
-pctx.fillStyle=grid[k]==="tr"?"#E30A17":"#00b5e2";
-pctx.fillRect(c*SLOT,r*SLOT,SLOT,SLOT);
-}
-}
+        function render() {
+            // Canvas'ı temizle (Şeffaf bırakıyoruz ki arka plandaki harita görünsün)
+            ctx.clearRect(0, 0, W, H);
 
-drawBaseMap();
-render();
-update();
-</script>
+            const visited = new Set();
+            for (let key in gridData) {
+                if (visited.has(key)) continue;
+
+                let [c, r] = key.split(',').map(Number);
+                let nation = gridData[key];
+
+                // --- AKILLI BİRLEŞME ALGORİTMASI ---
+                let cw = 1, ch = 1;
+                // Sağa doğru genişle
+                while (gridData[`${c + cw},${r}`] === nation) cw++;
+                // Aşağı doğru genişle
+                let canGrowDown = true;
+                while (canGrowDown) {
+                    for (let i = 0; i < cw; i++) {
+                        if (gridData[`${c + i},${r + ch}`] !== nation) {
+                            canGrowDown = false;
+                            break;
+                        }
+                    }
+                    if (canGrowDown) ch++;
+                }
+
+                // Ziyaret edildi olarak işaretle
+                for (let i = 0; i < cw; i++) {
+                    for (let j = 0; j < ch; j++) {
+                        visited.add(`${c + i},${r + j}`);
+                    }
+                }
+
+                drawMergedFlag(nation, c * SLOT, r * SLOT, cw * SLOT, ch * SLOT);
+            }
+        }
+
+        function drawMergedFlag(nation, x, y, w, h) {
+            const flag = new Image();
+            flag.crossOrigin = "anonymous";
+            // FlagCDN üzerinden çekiyoruz
+            flag.src = `https://flagcdn.com/w320/${nation}.png`;
+            
+            flag.onload = () => {
+                ctx.save();
+                // Bayraklar hafif şeffaf olsun ki altındaki harita sınırları seçilsin
+                ctx.globalAlpha = 0.85;
+                ctx.imageSmoothingEnabled = false;
+                ctx.drawImage(flag, x, y, w, h);
+                ctx.restore();
+            };
+        }
+
+        // İlk başlatma
+        updateTransform();
+        render();
+
+    </script>
 </body>
 </html>
