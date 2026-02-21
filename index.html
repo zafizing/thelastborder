@@ -2,36 +2,36 @@
 <html lang="tr">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v3.0 ULTIMATE CORE</title>
+    <title>THE LAST BORDER | v3.1 STABLE</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: sans-serif; }
-        #war-room { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; }
-        #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        canvas { background-color: #000; image-rendering: pixelated; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #050505; }
+        #canvas-container { position: absolute; transform-origin: 0 0; }
+        canvas { background: #000; display: block; image-rendering: pixelated; }
         #ui {
-            position: fixed; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(15, 15, 15, 0.95); padding: 20px; border: 1px solid #ff4500;
-            width: 260px; color: #ff4500; box-shadow: 0 0 30px #000;
+            position: fixed; top: 20px; left: 20px; z-index: 9999;
+            background: rgba(10, 10, 10, 0.9); padding: 15px; border: 1px solid #ff4500;
+            width: 240px; color: #ff4500; pointer-events: auto;
         }
-        select { background: #000; color: #ff4500; border: 1px solid #ff4500; padding: 10px; width: 100%; margin-bottom: 10px; cursor: pointer; }
-        .info { font-size: 11px; color: #888; line-height: 1.5; }
+        select { background: #000; color: #ff4500; border: 1px solid #ff4500; width: 100%; padding: 8px; margin-bottom: 10px; }
+        .info { font-size: 10px; color: #888; }
     </style>
 </head>
 <body>
 
 <div id="war-room">
     <div id="ui">
-        <h2 style="margin:0 0 10px 0; font-size:18px;">CORE ENGINE v3.0</h2>
+        <h2 style="margin:0 0 10px 0; font-size:16px;">STRATEGIC MAP v3.1</h2>
         <select id="nationSelect">
             <option value="tr">TÜRKİYE 🇹🇷</option>
             <option value="az">AZERBAYCAN 🇦🇿</option>
         </select>
         <div class="info">
-            [DRAG] PAN (v1.0.6 STABLE)<br>
-            [SCROLL] ZOOM TO CURSOR<br>
-            [CLICK] CONQUER & MERGE
+            [v1.0.6 STABLE NAVIGATION]<br>
+            DRAG: Pan | SCROLL: Zoom<br>
+            CLICK: Occupy Territory
         </div>
-        <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; width:100%; background:none; border:1px solid #444; color:#444; font-size:10px; cursor:pointer;">SİSTEMİ SIFIRLA</button>
+        <button onclick="localStorage.clear(); location.reload();" style="background:none; border:1px solid #444; color:#444; width:100%; margin-top:10px; cursor:pointer; font-size:10px;">PURGE DATA</button>
     </div>
     <div id="canvas-container">
         <canvas id="war-canvas"></canvas>
@@ -42,52 +42,51 @@
     const canvas = document.getElementById('war-canvas');
     const ctx = canvas.getContext('2d');
     const container = document.getElementById('canvas-container');
+    const select = document.getElementById('nationSelect');
 
     const W = 4000, H = 2000, SLOT = 20;
-    let gridData = JSON.parse(localStorage.getItem('world_core_v3') || '{}');
-
     canvas.width = W; canvas.height = H;
 
-    // v1.0.6 KAMERA SİSTEMİ
-    let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
+    let gridData = JSON.parse(localStorage.getItem('world_v31') || '{}');
+
+    // v1.0.6 KAMERA AYARLARI
+    let scale = 0.4, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
     let isDragging = false, startX, startY;
 
-    // GÖMÜLÜ COĞRAFYA (Basitleştirilmiş Dünya Haritası Koordinatları)
-    const continents = [
-        [1500,600, 800,400], // Avrasya temsili
-        [1600,1100, 400,500], // Afrika temsili
-        [500,700, 500,500],  // K. Amerika temsili
-        [800,1200, 400,600]   // G. Amerika temsili
-    ];
+    // HARİTA YÜKLEME (FAIL-SAFE: Yüklenmezse siyah ekran vermez)
+    const mapImg = new Image();
+    mapImg.crossOrigin = "anonymous";
+    // Proxy kullanarak Wikipedia engeline takılmıyoruz
+    mapImg.src = "https://api.allorigins.win/raw?url=" + encodeURIComponent("https://upload.wikimedia.org/wikipedia/commons/b/bb/World_map_blank_gmt.svg");
 
     function updateTransform() {
         container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
     }
 
-    // NAVİGASYON (v1.0.6)
-    window.addEventListener('wheel', (e) => {
+    // --- NAVİGASYON DÖNGÜSÜ ---
+    window.addEventListener('wheel', e => {
         e.preventDefault();
         const delta = e.deltaY < 0 ? 1.1 : 0.9;
         const oldScale = scale;
-        scale = Math.min(Math.max(0.1, scale * delta), 15);
+        scale = Math.min(Math.max(0.1, scale * delta), 10);
         originX = e.clientX - (e.clientX - originX) * (scale / oldScale);
         originY = e.clientY - (e.clientY - originY) * (scale / oldScale);
         updateTransform();
     }, { passive: false });
 
-    window.addEventListener('mousedown', (e) => {
+    window.addEventListener('mousedown', e => {
         if(e.target.closest('#ui')) return;
         isDragging = true; startX = e.clientX - originX; startY = e.clientY - originY;
     });
 
-    window.addEventListener('mousemove', (e) => {
+    window.addEventListener('mousemove', e => {
         if (isDragging) {
             originX = e.clientX - startX; originY = e.clientY - startY;
             updateTransform();
         }
     });
 
-    window.addEventListener('mouseup', (e) => {
+    window.addEventListener('mouseup', e => {
         if (isDragging) {
             const moved = Math.hypot(e.clientX - (startX + originX), e.clientY - (startY + originY));
             if (moved < 5) deploy(e);
@@ -98,73 +97,58 @@
     function deploy(e) {
         const x = (e.clientX - originX) / scale;
         const y = (e.clientY - originY) / scale;
-        
-        // Kara Kontrolü
-        let onLand = continents.some(c => x > c[0] && x < c[0]+c[2] && y > c[1] && y < c[1]+c[3]);
-        if (!onLand) return;
+
+        // Deniz Kontrolü (Canvas'taki piksel rengine bakıyoruz)
+        const p = ctx.getImageData(x, y, 1, 1).data;
+        // Eğer tıkladığın yer tamamen siyahsa (deniz), boyama yapma
+        if (p[0] < 20 && p[1] < 20 && p[2] < 20) return;
 
         const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
-        gridData[`${col},${row}`] = document.getElementById('nationSelect').value;
-        localStorage.setItem('world_core_v3', JSON.stringify(gridData));
+        gridData[`${col},${row}`] = select.value;
+        localStorage.setItem('world_v31', JSON.stringify(gridData));
         render();
     }
 
-    // BAYRAĞI KODLA ÇİZ (Resim Gerektirmez)
-    function drawFlagProcedural(nation, x, y, w, h) {
-        ctx.save();
-        if (nation === 'tr') {
-            ctx.fillStyle = '#E30A17';
-            ctx.fillRect(x, y, w, h);
-            ctx.fillStyle = '#FFF';
-            // Ay
-            ctx.beginPath(); ctx.arc(x + w*0.4, y + h*0.5, h*0.25, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#E30A17';
-            ctx.beginPath(); ctx.arc(x + w*0.45, y + h*0.5, h*0.22, 0, Math.PI*2); ctx.fill();
-            // Yıldız
-            ctx.fillStyle = '#FFF';
-            ctx.beginPath();
-            let cx = x + w*0.65, cy = y + h*0.5, pts = 5, outer = h*0.12, inner = h*0.05;
-            for(let i=0; i<pts*2; i++){
-                let r = (i%2==0)?outer:inner;
-                let a = (Math.PI*2/ (pts*2)) * i - Math.PI/2;
-                ctx.lineTo(cx + Math.cos(a)*r, cy + Math.sin(a)*r);
-            }
-            ctx.closePath(); ctx.fill();
-        } else {
-            ctx.fillStyle = '#00b5e2'; ctx.fillRect(x, y, w, h/3);
-            ctx.fillStyle = '#ef3340'; ctx.fillRect(x, y + h/3, w, h/3);
-            ctx.fillStyle = '#509b2f'; ctx.fillRect(x, y + 2*h/3, w, h/3);
-        }
-        ctx.restore();
-    }
-
     function render() {
-        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, W, H);
-        
-        // Karaları Çiz
-        ctx.fillStyle = "#1a1a1a";
-        continents.forEach(c => ctx.fillRect(c[0], c[1], c[2], c[3]));
+        // 1. Temizlik
+        ctx.fillStyle = "#000";
+        ctx.fillRect(0, 0, W, H);
 
-        // Birleşme Algoritması
-        const visited = new Set();
+        // 2. Harita Çizimi (Eğer yüklendiyse)
+        if (mapImg.complete && mapImg.naturalWidth !== 0) {
+            ctx.save();
+            ctx.filter = "brightness(0.6) contrast(1.2)";
+            ctx.drawImage(mapImg, 0, 0, W, H);
+            ctx.restore();
+        } else {
+            // Harita henüz gelmediyse veya bozuksa, tıklandığında boyama yapılabilmesi için 
+            // tıkla-boya alanını belirleyen geçici bir gri kutu çiz (Siyah ekranı önler)
+            ctx.fillStyle = "#111";
+            ctx.fillRect(100, 100, W-200, H-200);
+        }
+
+        // 3. Bayrakları Çiz (Procedural - Resim bekleyip kilitlenmez)
         for (let key in gridData) {
-            if (visited.has(key)) continue;
             let [c, r] = key.split(',').map(Number);
             let nation = gridData[key];
-            let cw = 1, ch = 1;
-            while (gridData[`${c + cw},${r}`] === nation) cw++;
-            let canGrow = true;
-            while (canGrow) {
-                for (let i = 0; i < cw; i++) if (gridData[`${c + i},${r + ch}`] !== nation) { canGrow = false; break; }
-                if (canGrow) ch++;
+            
+            ctx.save();
+            ctx.translate(c * SLOT, r * SLOT);
+            if (nation === 'tr') {
+                ctx.fillStyle = '#E30A17';
+                ctx.fillRect(0, 0, SLOT, SLOT);
+                ctx.fillStyle = '#FFF';
+                ctx.beginPath(); ctx.arc(SLOT*0.4, SLOT*0.5, SLOT*0.2, 0, Math.PI*2); ctx.fill();
+            } else {
+                ctx.fillStyle = '#00b5e2'; ctx.fillRect(0, 0, SLOT, SLOT);
             }
-            for (let i = 0; i < cw; i++) for (let j = 0; j < ch; j++) visited.add(`${c + i},${r + j}`);
-
-            drawFlagProcedural(nation, c*SLOT, r*SLOT, cw*SLOT, ch*SLOT);
+            ctx.restore();
         }
+        // Not: Birleşme (merge) algoritmasını render hızını düşürmemek için şimdilik temel tuttuk.
     }
 
-    render();
+    // Render Döngüsü
+    setInterval(render, 100); // 10 FPS stabil çizim
     updateTransform();
 </script>
 </body>
