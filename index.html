@@ -2,12 +2,21 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.4.3 FIXED</title>
+    <title>THE LAST BORDER | v7.4.4 SHARP</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
+        
+        /* CSS Seviyesinde Netlik Koruması */
+        canvas { 
+            background-color: #0d0d0d; 
+            image-rendering: optimizeSpeed;             /* Jilet gibi pikseller */
+            image-rendering: -moz-crisp-edges;          /* Firefox */
+            image-rendering: -webkit-optimize-contrast; /* Webkit */
+            image-rendering: pixelated;                 /* Modern Browsers */
+            cursor: crosshair; 
+        }
 
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); }
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
@@ -25,7 +34,7 @@
 </head>
 <body>
 
-    <div id="loading">FIXING COORDINATE ALIGNMENT...</div>
+    <div id="loading">SHARPENING PIXELS...</div>
 
     <div id="war-room">
         <div id="ui-overlay" class="panel">
@@ -50,7 +59,7 @@
 
     <script>
         const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: false }); // Alpha false performansı artırır
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
 
@@ -62,7 +71,6 @@
         let customNations = JSON.parse(localStorage.getItem('custom_v7.4') || '[]');
         const flagCache = {};
 
-        // DENİZ KONTROLÜ İÇİN SABİT GÖRÜNMEZ CANVAS
         const hitCanvas = document.createElement('canvas');
         hitCanvas.width = W; hitCanvas.height = H;
         const hitCtx = hitCanvas.getContext('2d');
@@ -119,15 +127,12 @@
 
         function handleConquer(e) {
             if (ammo <= 0) return;
-            
-            // HASSAS KOORDİNAT HESABI
             const rect = container.getBoundingClientRect();
             const x = (e.clientX - rect.left) / scale;
             const y = (e.clientY - rect.top) / scale;
 
             if (x < 0 || y < 0 || x > W || y > H) return;
 
-            // DENİZ KONTROLÜ (SABİT CANVAS ÜZERİNDEN)
             const p = hitCtx.getImageData(x, y, 1, 1).data;
             if (p[0] < 50 && p[1] < 50 && p[2] < 50) return;
 
@@ -143,9 +148,15 @@
         }
 
         function render() {
+            // KRİTİK: Bulanıklaştırmayı kapat
+            ctx.imageSmoothingEnabled = false;
+            ctx.mozImageSmoothingEnabled = false;
+            ctx.webkitImageSmoothingEnabled = false;
+            ctx.msImageSmoothingEnabled = false;
+
             ctx.clearRect(0, 0, W, H);
             ctx.drawImage(mapImg, 0, 0, W, H);
-            ctx.imageSmoothingEnabled = false;
+
             for (let key in gridData) {
                 let [c, r] = key.split(',').map(Number);
                 let nation = gridData[key];
@@ -153,7 +164,8 @@
                 if(img) {
                     ctx.save();
                     ctx.globalCompositeOperation = "source-atop";
-                    ctx.drawImage(img, c * SLOT, r * SLOT, SLOT, SLOT);
+                    // Math.floor ile tam piksel hizalaması
+                    ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), SLOT, SLOT);
                     ctx.restore();
                 }
             }
