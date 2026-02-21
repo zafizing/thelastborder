@@ -20,8 +20,6 @@
         }
         h1 { font-size: 3rem; letter-spacing: 5px; text-transform: uppercase; margin: 20px 0; border-bottom: 2px solid #d4af37; }
         p { font-size: 1.2rem; max-width: 800px; color: #f0e68c; font-style: italic; }
-        
-        /* CTA BUTTON */
         .cta-button {
             padding: 15px 40px; background-color: #d4af37; color: #1a1a1a;
             font-weight: bold; text-transform: uppercase; border: none;
@@ -29,53 +27,16 @@
             box-shadow: 0px 0px 15px rgba(212, 175, 55, 0.5); margin: 20px;
         }
         .cta-button:hover { background-color: #f0e68c; transform: scale(1.05); }
-
         #countdown { font-size: 2.5rem; color: #ff4500; font-weight: bold; margin-bottom: 20px; }
-
-        /* WAR ROOM (MAP) SECTION */
-        #war-room {
-            display: none; /* Cüzdan bağlanana kadar gizli */
-            flex-direction: column;
-            align-items: center;
-            width: 95vw;
-        }
-        #map-container {
-            position: relative;
-            border: 3px solid #d4af37;
-            background-color: #000;
-            cursor: crosshair;
-            overflow: hidden;
-            margin-bottom: 20px;
-        }
-        canvas {
-            background-image: url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg');
-            background-size: contain;
-            background-repeat: no-repeat;
-            background-position: center;
-            image-rendering: pixelated;
-        }
+        #war-room { display: none; flex-direction: column; align-items: center; width: 95vw; }
+        #map-container { position: relative; border: 3px solid #d4af37; background-color: #000; cursor: crosshair; overflow: hidden; margin-bottom: 20px; }
+        canvas { background-image: url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg'); background-size: contain; background-repeat: no-repeat; background-position: center; image-rendering: pixelated; }
         .controls { display: flex; gap: 10px; margin-bottom: 20px; }
-        .color-picker {
-            width: 35px; height: 35px; border: 2px solid #fff; cursor: pointer;
-        }
-
-        /* MODAL */
-        .modal {
-            display: none; position: fixed; z-index: 1000;
-            left: 0; top: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.95);
-        }
-        .modal-content {
-            background-color: #1a1a1a; margin: 15% auto; padding: 40px;
-            border: 2px solid #d4af37; width: 300px; text-align: center;
-        }
-        .wallet-option {
-            display: block; width: 100%; padding: 15px; margin: 10px 0;
-            background: #222; color: #d4af37; border: 1px solid #d4af37;
-            cursor: pointer; font-weight: bold; text-transform: uppercase;
-        }
+        .color-picker { width: 35px; height: 35px; border: 2px solid #fff; cursor: pointer; }
+        .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.95); }
+        .modal-content { background-color: #1a1a1a; margin: 15% auto; padding: 40px; border: 2px solid #d4af37; width: 300px; text-align: center; }
+        .wallet-option { display: block; width: 100%; padding: 15px; margin: 10px 0; background: #222; color: #d4af37; border: 1px solid #d4af37; cursor: pointer; font-weight: bold; text-transform: uppercase; }
         .wallet-option:hover { background: #d4af37; color: #1a1a1a; }
-        
         .footer { margin-top: 30px; font-size: 0.8rem; color: #666; padding-bottom: 20px; }
     </style>
 </head>
@@ -115,7 +76,6 @@
     <div class="footer">DECENTRALIZED CONQUEST PROTOCOL | POWERED BY SOLANA</div>
 
     <script>
-        // --- SAYAÇ ---
         const launchDate = new Date("Feb 24, 2026 12:00:00").getTime();
         function updateCountdown() {
             const now = new Date().getTime();
@@ -129,40 +89,49 @@
         setInterval(updateCountdown, 1000);
         updateCountdown();
 
-        // --- CÜZDAN & MODAL ---
         function openModal() { document.getElementById('walletModal').style.display = "block"; }
         function closeModal() { document.getElementById('walletModal').style.display = "none"; }
 
-        async function connect(type) {
+        async function connect(type, autoConnect = false) {
             let provider = (type === 'phantom') ? (window?.phantom?.solana || window?.solana) : window?.solflare;
             if (!provider) {
-                alert(type.toUpperCase() + " not found!");
-                window.open(type === 'phantom' ? "https://phantom.app/" : "https://solflare.com/", "_blank");
+                if(!autoConnect) {
+                    alert(type.toUpperCase() + " not found!");
+                    window.open(type === 'phantom' ? "https://phantom.app/" : "https://solflare.com/", "_blank");
+                }
                 return;
             }
             try {
-                const resp = await provider.connect();
-                console.log("Connected:", resp.publicKey.toString());
+                const resp = await provider.connect({ onlyIfTrusted: autoConnect });
+                localStorage.setItem('connectedWallet', type);
                 document.getElementById('intro-screen').style.display = "none";
                 document.getElementById('war-room').style.display = "flex";
                 initMap();
                 closeModal();
-            } catch (err) { alert("Connection failed. Unlock your wallet."); }
+            } catch (err) { 
+                console.log("Auto-connect failed or rejected");
+                if(!autoConnect) alert("Connection failed. Unlock your wallet.");
+            }
         }
 
-        // --- HARİTA MOTORU ---
+        // --- SAYFA YÜKLENDİĞİNDE OTOMATİK KONTROL ---
+        window.addEventListener('load', () => {
+            const savedWallet = localStorage.getItem('connectedWallet');
+            if (savedWallet) {
+                connect(savedWallet, true);
+            }
+        });
+
         let selectedColor = '#ff0000';
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d');
 
         function initMap() {
-            // Ekran genişliğine göre canvas boyutu
             const width = Math.min(window.innerWidth * 0.9, 1000);
             const height = width * 0.6;
             canvas.width = width;
             canvas.height = height;
-            
-            canvas.addEventListener('mousedown', function(e) {
+            canvas.addEventListener('mousedown', (e) => {
                 const rect = canvas.getBoundingClientRect();
                 const x = e.clientX - rect.left;
                 const y = e.clientY - rect.top;
@@ -171,10 +140,8 @@
         }
 
         function setColor(color) { selectedColor = color; }
-
         function drawPixel(x, y) {
             ctx.fillStyle = selectedColor;
-            // 5x5 piksel boyutu
             ctx.fillRect(Math.floor(x/5)*5, Math.floor(y/5)*5, 5, 5);
         }
     </script>
