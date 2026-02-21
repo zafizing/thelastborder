@@ -2,36 +2,26 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.4.5 FINAL JİLET</title>
+    <title>THE LAST BORDER | v7.4.6 50K SLOTS</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        
-        canvas { 
-            background-color: #0d0d0d; 
-            image-rendering: pixelated; /* Modern tarayıcılar için piksel netliği */
-            cursor: crosshair; 
-        }
-
+        canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); }
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #arsenal-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
-        
         select, input { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; box-sizing: border-box; margin-top: 8px; font-family: inherit; font-size: 11px; outline: none; }
         button { width: 100%; padding: 10px; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; font-weight: bold; border: none; }
         .ammo-display { font-size: 28px; color: #00ff00; text-align: center; margin: 10px 0; font-weight: bold; }
         .btn-buy { background: #00ff00; color: #000; }
         .btn-found { background: #ff4500; color: #fff; margin-top: 15px; }
-        
         #intel-panel { position: fixed; bottom: 20px; left: 20px; font-size: 11px; color: #ff4500; pointer-events: none; background: rgba(0,0,0,0.7); padding: 5px; }
         #loading { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; justify-content: center; align-items: center; color: #ff4500; }
     </style>
 </head>
 <body>
-
-    <div id="loading">RESTRICTION PROTOCOLS ACTIVE...</div>
-
+    <div id="loading">CALIBRATING 50,000 SLOTS...</div>
     <div id="war-room">
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
@@ -42,13 +32,11 @@
                 <button class="btn-found" onclick="foundNation()">ESTABLISH STATE</button>
             </div>
         </div>
-
         <div id="arsenal-panel" class="panel">
             <h2 style="margin:0; color: #00ff00; font-size: 16px; text-align: center;">ARSENAL</h2>
             <div class="ammo-display" id="ammoCount">0</div>
             <button class="btn-buy" onclick="buyAmmo(1000)">+1000 PX</button>
         </div>
-
         <div id="intel-panel">COORD: 0,0 | STATUS: STANDBY</div>
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
     </div>
@@ -59,7 +47,8 @@
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
 
-        const W = 4000, H = 2000, SLOT = 20;
+        // SLOT KÜÇÜLTÜLDÜ: 50.000 alana ulaşmak için 20'den 12.6'ya çekildi.
+        const W = 4000, H = 2000, SLOT = 12.6; 
         canvas.width = W; canvas.height = H;
 
         let ammo = parseInt(localStorage.getItem('ammo_v7.4') || '500');
@@ -67,7 +56,6 @@
         let customNations = JSON.parse(localStorage.getItem('custom_v7.4') || '[]');
         const flagCache = {};
 
-        // Sınır Dedektörü (Vazgeçilmez)
         const hitCanvas = document.createElement('canvas');
         hitCanvas.width = W; hitCanvas.height = H;
         const hitCtx = hitCanvas.getContext('2d');
@@ -99,11 +87,7 @@
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
-        mapImg.onload = () => { 
-            hitCtx.drawImage(mapImg, 0, 0, W, H); 
-            render(); 
-            updateTransform(); 
-        };
+        mapImg.onload = () => { hitCtx.drawImage(mapImg, 0, 0, W, H); render(); updateTransform(); };
 
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
         let isDragging = false, dragMoved = false, startX, startY;
@@ -124,20 +108,16 @@
 
         function handleConquer(e) {
             if (ammo <= 0) return;
-            const rect = canvas.getBoundingClientRect(); // Container yerine Canvas'tan ölçü al
+            const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
-
             if (x < 0 || y < 0 || x > W || y > H) return;
 
-            // SINIR KONTROLÜ GERİ GELDİ
             const p = hitCtx.getImageData(x, y, 1, 1).data;
-            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; // Deniz ise boyama
+            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return;
 
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
-            
-            // ÜST ÜSTE YAZMA SERBEST (Kendi ülkense mermi harcama)
             if (gridData[key] === nationSelect.value) return;
 
             ammo--; localStorage.setItem('ammo_v7.4', ammo);
@@ -148,11 +128,9 @@
         }
 
         function render() {
-            // NETLİK AYARLARI
             ctx.imageSmoothingEnabled = false;
             ctx.clearRect(0, 0, W, H);
             ctx.drawImage(mapImg, 0, 0, W, H);
-
             for (let key in gridData) {
                 let [c, r] = key.split(',').map(Number);
                 let nation = gridData[key];
@@ -160,8 +138,7 @@
                 if(img) {
                     ctx.save();
                     ctx.globalCompositeOperation = "source-atop";
-                    // Netlik için tamsayı koordinatlar
-                    ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), SLOT, SLOT);
+                    ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), Math.ceil(SLOT), Math.ceil(SLOT));
                     ctx.restore();
                 }
             }
