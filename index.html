@@ -2,11 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.8.0 AUTO-ECONOMY</title>
+    <title>THE LAST BORDER | v7.8.2 STABLE ECONOMY</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
-        #canvas-container { position: absolute; transform-origin: 0 0; scale: 1; will-change: transform; }
+        #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
         canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); box-shadow: 0 0 20px rgba(255, 69, 0, 0.1); }
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
@@ -20,7 +20,7 @@
     </style>
 </head>
 <body>
-    <div id="loading">FETCHING REAL-TIME MARKET DATA...</div>
+    <div id="loading">STABILIZING WAR NET...</div>
     <div id="war-room">
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
@@ -37,11 +37,12 @@
             <div id="sol-price-ui" style="font-size: 9px; text-align: center; color: #888; margin-bottom: 5px;">SOL/USD: FETCHING...</div>
             <div id="wallet-status" style="font-size: 10px; text-align: center; margin: 10px 0; color: #ff4500; font-weight: bold;">WALLET DISCONNECTED</div>
             <button id="connectBtn" style="background: #00ff00; color: #000;" onclick="connectWallet()">CONNECT WALLET</button>
+            <div style="font-size: 8px; color:#444; text-align:center; margin-top:5px;">TAX: 0% | GROWTH: 25%</div>
         </div>
 
         <div id="pixel-intel" class="panel">
             <div id="intel-main-content">
-                <div><span class="intel-label">TERRITORY:</span> <span id="intel-name">NONE</span></div>
+                <div><span class="intel-label">TERRITORY:</span> <span id="intel-name">UNCLAIMED</span></div>
                 <div><span class="intel-label">PRICE:</span> <span id="intel-price">1.00 USD</span></div>
                 <div id="sol-calc" style="font-size: 9px; color: #888; margin-bottom: 5px;">~ 0.00 SOL</div>
                 <button id="buyBtn" style="background: #ff4500; color: #fff; margin-top: 10px;">CONQUER PIXEL</button>
@@ -55,11 +56,20 @@
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
 
     <script>
-        // --- ADRES VE EKONOMİ ---
+        // --- CONFIG ---
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo"; 
-        let CURRENT_SOL_USD = 110; // Fallback price
+        let CURRENT_SOL_USD = 110;
+        const GROWTH_RATE = 1.25; // %25 Artış
 
-        const connection = new solanaWeb3.Connection(solanaWeb3.clusterApiUrl('mainnet-beta'));
+        // Alternatif RPC listesi (403'ü aşmak için)
+        const RPC_ENDPOINTS = [
+            "https://api.mainnet-beta.solana.com",
+            "https://solana-mainnet.rpc.anker.com",
+            "https://rpc.ankr.com/solana"
+        ];
+        let currentRpcIdx = 0;
+        let connection = new solanaWeb3.Connection(RPC_ENDPOINTS[currentRpcIdx]);
+
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const container = document.getElementById('canvas-container');
@@ -74,15 +84,13 @@
         let activeProvider = null;
         let walletAddress = null;
 
-        // --- FİYAT OTOMASYONU ---
         async function updateSolPrice() {
             try {
                 const res = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
                 const data = await res.json();
                 CURRENT_SOL_USD = data.solana.usd;
                 document.getElementById('sol-price-ui').innerText = `SOL/USD: $${CURRENT_SOL_USD.toFixed(2)}`;
-                console.log("Market Price Updated:", CURRENT_SOL_USD);
-            } catch (e) { console.error("Price fetch failed"); }
+            } catch (e) { console.warn("Price API limit, using fallback."); }
         }
 
         async function connectWallet() {
@@ -90,23 +98,26 @@
             if (!provider) return alert("Cüzdan bulunamadı!");
             try {
                 const resp = await provider.connect();
-                const pubKey = resp.publicKey || provider.publicKey;
-                walletAddress = pubKey.toString();
+                walletAddress = (resp.publicKey || provider.publicKey).toString();
                 activeProvider = provider;
                 document.getElementById('wallet-status').innerText = "CONNECTED: " + walletAddress.slice(0,6);
                 document.getElementById('wallet-status').style.color = "#00ff00";
                 document.getElementById('connectBtn').style.display = "none";
-            } catch (err) { alert("Bağlantı reddedildi."); }
+            } catch (err) { alert("Cüzdan bağlantısı reddedildi."); }
         }
 
         async function handlePurchase(key, usdPrice) {
-            if (!walletAddress) return alert("Önce cüzdan bağla!");
+            if (!walletAddress) return alert("Lütfen önce cüzdanınızı bağlayın!");
             
-            await updateSolPrice(); // İşlem öncesi fiyatı tazele
             const solAmount = usdPrice / CURRENT_SOL_USD;
             const lamports = Math.floor(solAmount * solanaWeb3.LAMPORTS_PER_SOL);
 
             try {
+                // 403 Bypass: Her işlemde bağlantıyı tazele
+                connection = new solanaWeb3.Connection(RPC_ENDPOINTS[currentRpcIdx]);
+                
+                const { blockhash } = await connection.getLatestBlockhash('confirmed');
+                
                 const transaction = new solanaWeb3.Transaction().add(
                     solanaWeb3.SystemProgram.transfer({
                         fromPubkey: new solanaWeb3.PublicKey(walletAddress),
@@ -115,24 +126,30 @@
                     })
                 );
 
-                const { blockhash } = await connection.getLatestBlockhash();
                 transaction.recentBlockhash = blockhash;
                 transaction.feePayer = new solanaWeb3.PublicKey(walletAddress);
 
                 const signed = await activeProvider.signAndSendTransaction(transaction);
-                alert("Savaş fonu gönderildi! İşlem işleniyor...");
+                alert("İşlem onaylandı! Savaş haritası güncelleniyor...");
                 
+                // Başarılı işlem sonrası güncellemeler
                 gridData[key] = nationSelect.value;
-                gridPrices[key] = usdPrice * 1.10;
+                gridPrices[key] = usdPrice * GROWTH_RATE;
                 localStorage.setItem('border_data_v7', JSON.stringify(gridData));
                 localStorage.setItem('border_prices_v7', JSON.stringify(gridPrices));
                 render();
             } catch (err) {
-                alert("İşlem hatası: " + err.message);
+                console.error("TX ERROR:", err);
+                if(err.message.includes('403')) {
+                    currentRpcIdx = (currentRpcIdx + 1) % RPC_ENDPOINTS.length;
+                    alert("Ağ yoğunluğu! Lütfen tekrar 'Conquer' butonuna basarak deneyin (RPC Rotated).");
+                } else {
+                    alert("İşlem hatası: " + err.message);
+                }
             }
         }
 
-        // --- HARİTA VE MOTOR ---
+        // --- HARİTA ÇİZİM KODLARI ---
         async function initNations() {
             const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
             const countries = await res.json();
