@@ -2,46 +2,28 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.5.3 ULTRA-SHARP 100K</title>
+    <title>THE LAST BORDER | v7.5.4 FIXED MAP</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        
-        canvas { 
-            background-color: #0d0d0d; 
-            /* Tarayıcıya pikselleri yumuşatma diyoruz */
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: pixelated;
-            image-rendering: optimizeSpeed;
-            cursor: crosshair; 
-        }
-
-        .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); box-shadow: 0 0 15px rgba(255, 69, 0, 0.2); }
+        canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
+        .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); }
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #arsenal-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
-        
-        #pixel-intel { 
-            bottom: 20px; right: 20px; width: 220px; 
-            border: 1px solid #00ff00; color: #00ff00;
-            font-size: 12px; line-height: 1.6; display: none;
-            pointer-events: none;
-        }
+        #pixel-intel { bottom: 20px; right: 20px; width: 220px; border: 1px solid #00ff00; color: #00ff00; font-size: 12px; display: none; pointer-events: none; }
         .intel-label { color: #ff4500; font-weight: bold; }
-
         select, input { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; box-sizing: border-box; margin-top: 8px; font-family: inherit; font-size: 11px; outline: none; }
-        button { width: 100%; padding: 10px; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; font-weight: bold; border: none; transition: 0.2s; }
-        button:hover { opacity: 0.8; }
+        button { width: 100%; padding: 10px; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; font-weight: bold; border: none; }
         .ammo-display { font-size: 28px; color: #00ff00; text-align: center; margin: 10px 0; font-weight: bold; }
-        #loading { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; justify-content: center; align-items: center; color: #ff4500; font-weight: bold; }
+        #loading { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; justify-content: center; align-items: center; color: #ff4500; }
     </style>
 </head>
 <body>
-    <div id="loading">SCANNING 100,000 SECTORS...</div>
+    <div id="loading">CALIBRATING WORLD MAP...</div>
     <div id="war-room">
         <div id="ui-overlay" class="panel">
-            <h2 style="margin:0; color: #ff4500; font-size: 16px; letter-spacing: 1px;">WAR COMMAND</h2>
+            <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
             <select id="nationSelect"></select>
             <div style="margin-top:20px; border-top: 1px dashed #444; padding-top: 10px;">
                 <input type="text" id="customName" placeholder="NATION NAME">
@@ -63,34 +45,27 @@
                 <div><span class="intel-label">STATUS:</span> <span id="intel-status">AVAILABLE</span></div>
                 <div style="font-size: 10px; color: #666; margin-top: 5px;">COORDS: <span id="intel-coords">0,0</span></div>
             </div>
-            <div id="intel-sea-content" style="display:none; color: #5bc0de; text-align: center; font-weight: bold;">
-                <span class="intel-label" style="color:#5bc0de">INT. WATERS</span><br>
-                <span style="font-size: 10px;">CLAIMING PROHIBITED</span>
+            <div id="intel-sea-content" style="display:none; color: #5bc0de; text-align: center;">
+                <span class="intel-label" style="color:#5bc0de">INT. WATERS</span><br>CLAIMING PROHIBITED
             </div>
         </div>
-
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
     </div>
 
     <script>
-        // HARD RESET (Gerektiğinde aç kanka): 
-        // localStorage.clear();
-
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: false });
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
         const intelPanel = document.getElementById('pixel-intel');
-        const intelMain = document.getElementById('intel-main-content');
-        const intelSea = document.getElementById('intel-sea-content');
 
-        // 100K SLOT HESABI: 4000x2000 haritada 8.94 size = ~100,111 slot
         const W = 4000, H = 2000, SLOT = 8.94; 
         canvas.width = W; canvas.height = H;
 
         let ammo = parseInt(localStorage.getItem('ammo_v100k') || '1000');
         let gridData = JSON.parse(localStorage.getItem('data_v100k') || '{}');
         const flagCache = {};
+        let mapLoaded = false;
 
         const hitCanvas = document.createElement('canvas');
         hitCanvas.width = W; hitCanvas.height = H;
@@ -101,32 +76,54 @@
                 const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
                 const countries = await res.json();
                 countries.sort((a, b) => a.name.common.localeCompare(b.name.common));
-                
-                const addOpt = (code, name) => {
-                    const opt = document.createElement('option');
-                    opt.value = code; opt.textContent = name;
-                    nationSelect.appendChild(opt);
-                    const img = new Image(); img.crossOrigin = "anonymous";
-                    // Netlik için çok büyük olmayan (w80) bayraklar çekiyoruz
-                    img.src = code.startsWith('http') ? code : `https://flagcdn.com/w80/${code}.png`;
-                    img.onload = () => { flagCache[code] = img; render(); };
-                };
-
                 countries.forEach(c => {
                     let code = c.cca2.toLowerCase();
-                    let name = (code === "tr") ? "TÜRKİYE" : c.name.common.toUpperCase();
-                    addOpt(code, name);
+                    let opt = document.createElement('option');
+                    opt.value = code; opt.textContent = (code === "tr") ? "TÜRKİYE" : c.name.common.toUpperCase();
+                    nationSelect.appendChild(opt);
+                    let img = new Image(); img.crossOrigin = "anonymous";
+                    img.src = `https://flagcdn.com/w80/${code}.png`;
+                    img.onload = () => { flagCache[code] = img; if(mapLoaded) render(); };
                 });
-                
                 document.getElementById('ammoCount').innerText = ammo;
-                document.getElementById('loading').style.display = 'none';
             } catch (e) {}
         }
 
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
-        mapImg.onload = () => { hitCtx.drawImage(mapImg, 0, 0, W, H); render(); updateTransform(); };
+        mapImg.onload = () => { 
+            hitCtx.drawImage(mapImg, 0, 0, W, H); 
+            mapLoaded = true;
+            document.getElementById('loading').style.display = 'none';
+            render(); 
+            updateTransform(); 
+        };
+
+        function render() {
+            if(!mapLoaded) return;
+            ctx.imageSmoothingEnabled = false;
+            ctx.clearRect(0, 0, W, H);
+            
+            // 1. Bayrakları çiz
+            for (let key in gridData) {
+                let [c, r] = key.split(',').map(Number);
+                let img = flagCache[gridData[key]];
+                if(img) ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), Math.ceil(SLOT), Math.ceil(SLOT));
+            }
+            
+            // 2. Harita Maskeleme
+            ctx.save();
+            ctx.globalCompositeOperation = "destination-in";
+            ctx.drawImage(mapImg, 0, 0, W, H);
+            ctx.restore();
+            
+            // 3. Arkaplan Harita
+            ctx.save();
+            ctx.globalCompositeOperation = "destination-over";
+            ctx.drawImage(mapImg, 0, 0, W, H);
+            ctx.restore();
+        }
 
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
         let isDragging = false, dragMoved = false, startX, startY;
@@ -138,48 +135,37 @@
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
 
-            if (x >= 0 && x <= W && y >= 0 && y <= H) {
+            if (x >= 0 && x <= W && y >= 0 && y <= H && mapLoaded) {
                 intelPanel.style.display = 'block';
                 const p = hitCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
                 const isSea = (p[0] < 50 && p[1] < 50 && p[2] < 50);
 
                 if (isSea) {
-                    intelMain.style.display = 'none';
-                    intelSea.style.display = 'block';
+                    document.getElementById('intel-main-content').style.display = 'none';
+                    document.getElementById('intel-sea-content').style.display = 'block';
                     intelPanel.style.borderColor = '#5bc0de';
                 } else {
-                    intelMain.style.display = 'block';
-                    intelSea.style.display = 'none';
+                    document.getElementById('intel-main-content').style.display = 'block';
+                    document.getElementById('intel-sea-content').style.display = 'none';
                     intelPanel.style.borderColor = '#00ff00';
-                    
                     const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
                     const key = `${col},${row}`;
-                    const nationCode = gridData[key];
-                    
                     document.getElementById('intel-coords').innerText = `${col},${row}`;
+                    const nationCode = gridData[key];
                     if (nationCode) {
-                        const option = Array.from(nationSelect.options).find(opt => opt.value === nationCode);
-                        document.getElementById('intel-name').innerText = option ? option.text : "PRIVATE NATION";
+                        const opt = Array.from(nationSelect.options).find(o => o.value === nationCode);
+                        document.getElementById('intel-name').innerText = opt ? opt.text : "CUSTOM";
                         document.getElementById('intel-status').innerText = "OCCUPIED";
                         document.getElementById('intel-status').style.color = "#ff4500";
-                        document.getElementById('intel-price').innerText = "1.10 USD";
                     } else {
                         document.getElementById('intel-name').innerText = "NONE";
                         document.getElementById('intel-status').innerText = "AVAILABLE";
                         document.getElementById('intel-status').style.color = "#00ff00";
-                        document.getElementById('intel-price').innerText = "1.00 USD";
                     }
                 }
-            } else {
-                intelPanel.style.display = 'none';
-            }
+            } else { intelPanel.style.display = 'none'; }
 
-            if (isDragging) {
-                dragMoved = true;
-                originX = e.clientX - startX;
-                originY = e.clientY - startY;
-                updateTransform();
-            }
+            if (isDragging) { dragMoved = true; originX = e.clientX - startX; originY = e.clientY - startY; updateTransform(); }
         });
 
         window.addEventListener('wheel', e => {
@@ -194,18 +180,15 @@
         window.addEventListener('mouseup', e => { if (isDragging && !dragMoved) handleConquer(e); isDragging = false; });
 
         function handleConquer(e) {
-            if (ammo <= 0) return alert("NO AMMO!");
+            if (ammo <= 0 || !mapLoaded) return;
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
-            
             const p = hitCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
             if (p[0] < 50 && p[1] < 50 && p[2] < 50) return;
-
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
             if (gridData[key] === nationSelect.value) return;
-
             ammo--;
             document.getElementById('ammoCount').innerText = ammo;
             gridData[key] = nationSelect.value;
@@ -214,52 +197,15 @@
             render();
         }
 
-        function render() {
-            // JİLET NETLİK AYARLARI
-            ctx.imageSmoothingEnabled = false;
-            ctx.mozImageSmoothingEnabled = false;
-            ctx.webkitImageSmoothingEnabled = false;
-            ctx.msImageSmoothingEnabled = false;
-
-            ctx.clearRect(0, 0, W, H);
-            
-            // Bayraklar
-            for (let key in gridData) {
-                let [c, r] = key.split(',').map(Number);
-                const img = flagCache[gridData[key]];
-                if(img) {
-                    ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), Math.ceil(SLOT), Math.ceil(SLOT));
-                }
-            }
-            
-            // Maskeleme (Harita sınırları içinde tut)
-            ctx.save();
-            ctx.globalCompositeOperation = "destination-in";
-            ctx.drawImage(mapImg, 0, 0, W, H);
-            ctx.restore();
-            
-            // Denizi Çiz
-            ctx.save();
-            ctx.globalCompositeOperation = "destination-over";
-            ctx.drawImage(mapImg, 0, 0, W, H);
-            ctx.restore();
-        }
-
-        function buyAmmo(n) { 
-            ammo += n; 
-            localStorage.setItem('ammo_v100k', ammo);
-            document.getElementById('ammoCount').innerText = ammo; 
-        }
-
+        function buyAmmo(n) { ammo += n; localStorage.setItem('ammo_v100k', ammo); document.getElementById('ammoCount').innerText = ammo; }
         function foundNation() {
             const n = document.getElementById('customName').value, f = document.getElementById('customFlag').value;
             if(!n || !f) return;
-            const opt = document.createElement('option');
-            opt.value = f; opt.textContent = n.toUpperCase();
+            const opt = document.createElement('option'); opt.value = f; opt.textContent = n.toUpperCase();
             nationSelect.insertBefore(opt, nationSelect.firstChild);
             nationSelect.value = f;
-            const img = new Image(); img.crossOrigin = "anonymous";
-            img.src = f; img.onload = () => { flagCache[f] = img; render(); };
+            let img = new Image(); img.crossOrigin = "anonymous"; img.src = f;
+            img.onload = () => { flagCache[f] = img; render(); };
         }
 
         initNations();
