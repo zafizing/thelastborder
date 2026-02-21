@@ -2,52 +2,48 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v6.0 EPIC CONQUEST</title>
+    <title>THE LAST BORDER | v7.0 SOVEREIGNTY</title>
     <style>
-        body, html { 
-            background-color: #020205; color: #d4af37;
-            font-family: 'Courier New', monospace;
-            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-        }
-        /* ARKA PLAN EFEKTİ */
-        #war-room { 
-            width: 100vw; height: 100vh; position: relative; overflow: hidden;
-            background: radial-gradient(circle, #0a0a1a 0%, #020205 100%);
-        }
+        body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: radial-gradient(circle, #0a0a1a 0%, #020205 100%); }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        
-        canvas { 
-            background-color: transparent;
-            image-rendering: pixelated; /* Bayrak netliği için kritik */
-            box-shadow: 0 0 100px rgba(0,0,0,0.5);
-        }
+        canvas { background-color: transparent; image-rendering: pixelated; }
 
+        /* UI PANELS */
         #ui-overlay {
             position: fixed; top: 20px; left: 20px; z-index: 100;
-            background: rgba(5, 5, 10, 0.9); padding: 20px; border: 1px solid #ff4500;
-            box-shadow: 0 0 20px rgba(255, 69, 0, 0.2); width: 280px;
-            backdrop-filter: blur(5px);
+            background: rgba(5, 5, 15, 0.95); padding: 20px; border: 1px solid #ff4500;
+            box-shadow: 0 0 20px rgba(255, 69, 0, 0.3); width: 300px; backdrop-filter: blur(10px);
         }
-        h2 { margin: 0 0 10px 0; color: #ff4500; text-shadow: 0 0 10px #ff4500; font-size: 18px; text-align: center; }
-        select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 12px; width: 100%; cursor: pointer; font-family: inherit; font-weight: bold; }
-        .controls { font-size: 10px; color: #00ff00; margin-top: 15px; line-height: 1.6; opacity: 0.7; }
-        .status-bar { border-top: 1px dashed #444; margin-top: 10px; padding-top: 10px; font-size: 9px; color: #888; }
+        select, input { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; margin-bottom: 10px; font-family: inherit; }
+        .btn-action { background: #ff4500; color: #fff; border: none; padding: 12px; width: 100%; cursor: pointer; font-weight: bold; text-transform: uppercase; transition: 0.3s; }
+        .btn-action:hover { background: #ff6347; box-shadow: 0 0 15px #ff4500; }
+        
+        #intel-panel { position: fixed; bottom: 20px; right: 20px; background: rgba(0,0,0,0.8); padding: 10px; border-left: 3px solid #ff4500; font-size: 12px; pointer-events: none; }
+        .custom-nation-form { margin-top: 15px; padding-top: 15px; border-top: 1px dashed #444; }
     </style>
 </head>
 <body>
 
     <div id="war-room">
         <div id="ui-overlay">
-            <h2>TACTICAL COMMAND</h2>
+            <h2 style="margin:0 0 15px 0; color: #ff4500; text-shadow: 0 0 10px #ff4500;">WAR COMMAND</h2>
+            
+            <label style="font-size: 10px;">SELECT SOVEREIGN NATION:</label>
             <select id="nationSelect"></select>
-            <div class="controls">
-                > TARGETING: POLITICAL BORDER LOCK<br>
-                > RESOLUTION: CAM-NET 4K ENABLED<br>
-                > MODE: TOTAL CONQUEST (EPIC)
+
+            <div class="custom-nation-form">
+                <label style="font-size: 10px; color: #d4af37;">FOUND NEW NATION (0.1 SOL):</label>
+                <input type="text" id="customName" placeholder="NATION NAME...">
+                <input type="text" id="customFlag" placeholder="FLAG IMAGE URL...">
+                <button class="btn-action" onclick="foundNation()">ESTABLISH STATE</button>
             </div>
-            <div class="status-bar" id="system-status">SYSTEM: READY...</div>
-            <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; width:100%; background:none; border:1px solid #444; color:#444; font-size:9px; cursor:pointer;">PURGE HISTORY</button>
+
+            <div id="system-status" style="font-size: 9px; margin-top:15px; color:#666;">SYSTEM: STANDBY</div>
         </div>
+
+        <div id="intel-panel">REGION: UNKNOWN | COORDINATES: 0,0</div>
+
         <div id="canvas-container">
             <canvas id="war-canvas"></canvas>
         </div>
@@ -58,131 +54,81 @@
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
+        const intel = document.getElementById('intel-panel');
 
         const W = 4000, H = 2000, SLOT = 20;
         canvas.width = W; canvas.height = H;
 
-        let gridData = JSON.parse(localStorage.getItem('border_epic_v6') || '{}');
-        const flagCache = {}; // 1. MADDE: NETLİK İÇİN CACHE SİSTEMİ
+        let gridData = JSON.parse(localStorage.getItem('world_v7') || '{}');
+        let customNations = JSON.parse(localStorage.getItem('custom_nations') || '[]');
+        const flagCache = {};
 
-        const countries = {
-            "tr": "TÜRKİYE", "az": "AZERBAIJAN", "us": "USA", "gb": "UNITED KINGDOM", 
-            "de": "GERMANY", "ru": "RUSSIA", "cn": "CHINA", "fr": "FRANCE", "jp": "JAPAN"
-        };
-        
-        Object.entries(countries).forEach(([code, name]) => {
-            const opt = document.createElement('option');
-            opt.value = code; opt.textContent = name;
-            nationSelect.appendChild(opt);
+        // 1. TÜM ÜLKELERİ ÇEK (REST Countries API tabanlı mantık)
+        async function loadNations() {
+            // Temel liste (API hızı için başlangıç seti, kodun devamında otomatik genişler)
+            const list = { "tr": "TÜRKİYE", "az": "AZERBAIJAN", "us": "USA", "de": "GERMANY", "ru": "RUSSIA", "cn": "CHINA", "jp": "JAPAN", "gb": "UK", "fr": "FRANCE", "br": "BRAZIL", "ca": "CANADA" };
             
-            // Bayrakları önceden yükle (Preload)
-            const img = new Image();
-            img.crossOrigin = "anonymous";
-            img.src = `https://flagcdn.com/w320/${code}.png`;
-            img.onload = () => { flagCache[code] = img; };
-        });
+            const addOption = (code, name, group) => {
+                const opt = document.createElement('option');
+                opt.value = code; opt.textContent = `${group}: ${name}`;
+                nationSelect.appendChild(opt);
+                if(!flagCache[code]) {
+                    const img = new Image(); img.crossOrigin = "anonymous";
+                    img.src = code.startsWith('http') ? code : `https://flagcdn.com/w320/${code}.png`;
+                    img.onload = () => { flagCache[code] = img; };
+                }
+            };
 
-        // 3. MADDE: EPİK HARİTA TASARIMI
+            Object.entries(list).forEach(([c, n]) => addOption(c, n, "GLOBAL"));
+            customNations.forEach(n => addOption(n.flag, n.name, "PRIVATE"));
+        }
+
+        // 2. ÜLKE KURMA (MONETIZATION)
+        async function foundNation() {
+            const name = document.getElementById('customName').value;
+            const flagUrl = document.getElementById('customFlag').value;
+            
+            if(!name || !flagUrl) return alert("Enter Name and Flag URL!");
+
+            // Solana/Phantom Wallet Trigger (Simüle edilmiş, cüzdan varsa 0.1 SOL ister)
+            if (window.solana && window.solana.isPhantom) {
+                try {
+                    await window.solana.connect();
+                    // Buraya gerçek transfer kodu gelecek. Şimdilik onaylıyoruz.
+                    customNations.push({ name: name, flag: flagUrl });
+                    localStorage.setItem('custom_nations', JSON.stringify(customNations));
+                    location.reload();
+                } catch (err) { alert("Transaction Rejected."); }
+            } else {
+                alert("Phantom Wallet not found! Install to found a nation.");
+            }
+        }
+
+        // 3. HARİTA VE SINIR SİSTEMİ
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
-        // Daha keskin ve sınırları belli bir harita kullanıyoruz
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
 
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
         let isDragging = false, dragMoved = false, startX, startY;
 
-        function updateTransform() {
-            container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
-        }
+        function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
 
-        // NAVİGASYON (v1.0.6 STABLE)
-        window.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            const delta = e.deltaY < 0 ? 1.1 : 0.9;
-            const oldScale = scale;
+        window.addEventListener('wheel', e => {
+            e.preventDefault(); const delta = e.deltaY < 0 ? 1.1 : 0.9; const old = scale;
             scale = Math.min(Math.max(0.1, scale * delta), 15);
-            originX = e.clientX - (e.clientX - originX) * (scale / oldScale);
-            originY = e.clientY - (e.clientY - originY) * (scale / oldScale);
+            originX = e.clientX - (e.clientX - originX) * (scale / old);
+            originY = e.clientY - (e.clientY - originY) * (scale / old);
             updateTransform();
         }, { passive: false });
 
-        window.addEventListener('mousedown', (e) => {
+        window.addEventListener('mousedown', e => {
             if(e.target.closest('#ui-overlay')) return;
-            isDragging = true; dragMoved = false;
-            startX = e.clientX - originX; startY = e.clientY - originY;
+            isDragging = true; dragMoved = false; startX = e.clientX - originX; startY = e.clientY - originY;
         });
 
-        window.addEventListener('mousemove', (e) => {
+        window.addEventListener('mousemove', e => {
+            const x = (e.clientX - originX) / scale, y = (e.clientY - originY) / scale;
+            intel.innerText = `COORD: ${Math.floor(x)},${Math.floor(y)} | ANALYZING BORDERS...`;
             if (isDragging) {
-                if(Math.hypot(e.clientX - startX - originX, e.clientY - startY - originY) > 5) dragMoved = true;
-                originX = e.clientX - startX; originY = e.clientY - startY;
-                updateTransform();
-            }
-        });
-
-        window.addEventListener('mouseup', (e) => {
-            if (isDragging && !dragMoved) handleConquer(e);
-            isDragging = false;
-        });
-
-        function handleConquer(e) {
-            const x = (e.clientX - originX) / scale;
-            const y = (e.clientY - originY) / scale;
-
-            // 2. MADDE: SINIR KONTROLÜ
-            const pixel = ctx.getImageData(x, y, 1, 1).data;
-            if (pixel[0] < 20 && pixel[1] < 20 && pixel[2] < 20) return; // Deniz (Siyah) ise boyama
-
-            const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
-            gridData[`${col},${row}`] = nationSelect.value;
-            localStorage.setItem('border_epic_v6', JSON.stringify(gridData));
-            render();
-            document.getElementById('system-status').innerText = `SYSTEM: TERRITORY OCCUPIED [${col},${row}]`;
-        }
-
-        function render() {
-            ctx.clearRect(0, 0, W, H);
-            
-            // EPİK GÖRSEL AYARLAR
-            ctx.filter = "brightness(0.8) contrast(1.2) sepia(0.2)"; // Askeri monitör havası
-            ctx.drawImage(mapImg, 0, 0, W, H);
-            ctx.filter = "none";
-
-            const visited = new Set();
-            for (let key in gridData) {
-                if (visited.has(key)) continue;
-                let [c, r] = key.split(',').map(Number);
-                let nation = gridData[key];
-
-                // MERGE ALGORİTMASI
-                let cw = 1, ch = 1;
-                while (gridData[`${c + cw},${r}`] === nation) cw++;
-                let canGrow = true;
-                while (canGrow) {
-                    for (let i = 0; i < cw; i++) if (gridData[`${c + i},${r + ch}`] !== nation) { canGrow = false; break; }
-                    if (canGrow) ch++;
-                }
-                for (let i = 0; i < cw; i++) for (let j = 0; j < ch; j++) visited.add(`${c + i},${r + j}`);
-
-                drawFlag(nation, c * SLOT, r * SLOT, cw * SLOT, ch * SLOT);
-            }
-        }
-
-        function drawFlag(nation, x, y, w, h) {
-            const img = flagCache[nation];
-            if (!img) return;
-
-            ctx.save();
-            ctx.globalCompositeOperation = "source-atop"; // Karadan taşmama
-            ctx.imageSmoothingEnabled = false; // 1. MADDE: PİKSEL NETLİĞİ
-            ctx.globalAlpha = 0.9;
-            ctx.drawImage(img, x, y, w, h);
-            ctx.restore();
-        }
-
-        mapImg.onload = () => { render(); updateTransform(); };
-        // Otomatik Render (Netlik için)
-        setInterval(render, 500); 
-    </script>
-</body>
-</html>
+                if(Math.hypot(e.clientX-startX-originX, e.clientY-startY-originY) >
