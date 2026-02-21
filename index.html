@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.4.7 REAL ESTATE</title>
+    <title>THE LAST BORDER | v7.4.8 CLEAN SLATE</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
@@ -21,7 +21,7 @@
     </style>
 </head>
 <body>
-    <div id="loading">RESETTING MAP & CALIBRATING SLOTS...</div>
+    <div id="loading">HARD RESET IN PROGRESS...</div>
     <div id="war-room">
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
@@ -35,27 +35,27 @@
         <div id="arsenal-panel" class="panel">
             <h2 style="margin:0; color: #00ff00; font-size: 16px; text-align: center;">ARSENAL</h2>
             <div class="ammo-display" id="ammoCount">0</div>
-            <button class="btn-buy" onclick="buyAmmo(1000)">+1000 PX</button>
+            <button class="btn-buy" onclick="buyAmmo(1000)">+1000 PX (SOL)</button>
         </div>
         <div id="intel-panel">COORD: 0,0 | STATUS: STANDBY</div>
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
     </div>
 
     <script>
-        // TEMİZLİK: Eski boyamaları silmek için bu satırı bir kez çalıştırıp sonra silebilirsin.
-        // localStorage.removeItem('data_v7.4'); 
+        // KESİN ÇÖZÜM: TÜM ESKİ VERİLERİ SİL
+        localStorage.clear(); 
 
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
 
-        const W = 4000, H = 2000, SLOT = 12.6; // ~50.000 Slot
+        const W = 4000, H = 2000, SLOT = 12.6; 
         canvas.width = W; canvas.height = H;
 
-        let ammo = parseInt(localStorage.getItem('ammo_v7.4') || '500');
-        let gridData = JSON.parse(localStorage.getItem('data_v7.4') || '{}');
-        let customNations = JSON.parse(localStorage.getItem('custom_v7.4') || '[]');
+        let ammo = 500; // Reset sonrası başlangıç mermisi
+        let gridData = {}; // Reset sonrası boş harita
+        let customNations = [];
         const flagCache = {};
 
         const hitCanvas = document.createElement('canvas');
@@ -75,7 +75,6 @@
                     img.src = code.startsWith('http') ? code : `https://flagcdn.com/w320/${code}.png`;
                     img.onload = () => { flagCache[code] = img; render(); };
                 };
-                customNations.forEach(n => addOpt(n.flag, n.name.toUpperCase(), "PRIVATE"));
                 countries.forEach(c => {
                     let code = c.cca2.toLowerCase();
                     let name = (code === "tr") ? "TÜRKİYE" : c.name.common.toUpperCase();
@@ -109,7 +108,7 @@
         window.addEventListener('mouseup', e => { if (isDragging && !dragMoved) handleConquer(e); isDragging = false; });
 
         function handleConquer(e) {
-            if (ammo <= 0) return alert("NO AMMO! BUY TO CLAIM.");
+            if (ammo <= 0) return alert("CEPHANE BİTTİ! DEVAM ETMEK İÇİN SATIN AL.");
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
@@ -122,19 +121,12 @@
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
 
-            // BURASI BOŞ MU? (Initial Sale Logics)
-            if (!gridData[key]) {
-                console.log("NEW AREA CLAIMED: 1$ EQUIVALENT SPENT.");
-            } else if (gridData[key] === nationSelect.value) {
-                return; // Zaten senin
-            } else {
-                console.log("WAR! OVERWRITING PREVIOUS OWNER.");
-            }
+            if (gridData[key] === nationSelect.value) return;
 
-            ammo--; localStorage.setItem('ammo_v7.4', ammo);
+            ammo--;
             document.getElementById('ammoCount').innerText = ammo;
             gridData[key] = nationSelect.value;
-            localStorage.setItem('data_v7.4', JSON.stringify(gridData));
+            localStorage.setItem('data_v7.4_final', JSON.stringify(gridData));
             render();
         }
 
@@ -155,12 +147,18 @@
             }
         }
 
-        function buyAmmo(n) { ammo += n; localStorage.setItem('ammo_v7.4', ammo); document.getElementById('ammoCount').innerText = ammo; }
+        // BU FONKSİYON YAKINDA CÜZDANA BAĞLANACAK
+        function buyAmmo(n) { 
+            console.log("PAYMENT REQUEST INITIATED...");
+            ammo += n; 
+            document.getElementById('ammoCount').innerText = ammo; 
+        }
+
         function foundNation() {
             const n = document.getElementById('customName').value, f = document.getElementById('customFlag').value;
             if(!n || !f) return;
             customNations.push({name: n, flag: f});
-            localStorage.setItem('custom_v7.4', JSON.stringify(customNations));
+            localStorage.setItem('custom_v7.4_final', JSON.stringify(customNations));
             location.reload();
         }
 
