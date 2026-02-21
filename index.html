@@ -2,11 +2,10 @@
 <html lang="tr">
 <head>
 <meta charset="UTF-8">
-<title>THE LAST BORDER | v4.0 FIXED</title>
+<title>STRATEGIC MAP v4.1 OFFLINE</title>
 <style>
-html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:'Courier New',monospace}
-#war-room{width:100vw;height:100vh;position:relative;overflow:hidden}
-#canvas-container{position:absolute;transform-origin:0 0}
+html,body{margin:0;height:100%;background:#000;overflow:hidden;font-family:Courier}
+#container{position:absolute;transform-origin:0 0}
 canvas{position:absolute;top:0;left:0;image-rendering:pixelated}
 #ui{
 position:fixed;top:20px;left:20px;z-index:9999;
@@ -15,191 +14,108 @@ border:1px solid #ff4500;
 padding:15px;width:240px;color:#ff4500
 }
 select{width:100%;padding:8px;background:#000;color:#ff4500;border:1px solid #ff4500}
-button{background:none;border:1px solid #444;color:#444;width:100%;margin-top:10px;font-size:10px;cursor:pointer}
-.info{font-size:10px;color:#888;margin-top:8px}
+button{width:100%;margin-top:10px;background:none;border:1px solid #444;color:#444}
 </style>
 </head>
 <body>
 
-<div id="war-room">
 <div id="ui">
-<h2 style="margin:0 0 10px 0;font-size:16px">STRATEGIC MAP v4.0</h2>
-<select id="nationSelect">
+<h3>STRATEGIC MAP v4.1</h3>
+<select id="nation">
 <option value="tr">TÜRKİYE 🇹🇷</option>
 <option value="az">AZERBAYCAN 🇦🇿</option>
 </select>
-<div class="info">
-DRAG: Pan | SCROLL: Zoom<br>
-CLICK: Occupy Territory
-</div>
 <button onclick="localStorage.clear();location.reload()">PURGE DATA</button>
 </div>
 
-<div id="canvas-container">
-<canvas id="mapCanvas" width="4000" height="2000"></canvas>
-<canvas id="paintCanvas" width="4000" height="2000"></canvas>
-</div>
+<div id="container">
+<canvas id="map" width="4000" height="2000"></canvas>
+<canvas id="paint" width="4000" height="2000"></canvas>
 </div>
 
 <script>
 const W=4000,H=2000,SLOT=20;
+const map=document.getElementById("map");
+const paint=document.getElementById("paint");
+const mctx=map.getContext("2d");
+const pctx=paint.getContext("2d");
+pctx.imageSmoothingEnabled=false;
 
-const mapCanvas=document.getElementById("mapCanvas");
-const paintCanvas=document.getElementById("paintCanvas");
-const maskCanvas=document.createElement("canvas");
-
-mapCanvas.width=paintCanvas.width=maskCanvas.width=W;
-mapCanvas.height=paintCanvas.height=maskCanvas.height=H;
-
-const mapCtx=mapCanvas.getContext("2d");
-const paintCtx=paintCanvas.getContext("2d");
-const maskCtx=maskCanvas.getContext("2d");
-
-paintCtx.imageSmoothingEnabled=false;
-
-const container=document.getElementById("canvas-container");
-const select=document.getElementById("nationSelect");
+const container=document.getElementById("container");
+const nation=document.getElementById("nation");
 
 let scale=0.4;
-let originX=(window.innerWidth-W*scale)/2;
-let originY=(window.innerHeight-H*scale)/2;
+let ox=(window.innerWidth-W*scale)/2;
+let oy=(window.innerHeight-H*scale)/2;
 
-let isDragging=false,startX=0,startY=0;
-let movedDuringDrag=false;
+let drag=false,sx,sy,moved=false;
+let grid=JSON.parse(localStorage.getItem("world_v41")||"{}");
 
-let gridData=JSON.parse(localStorage.getItem("world_v40")||"{}");
-let landMaskData=null;
+function update(){container.style.transform=`translate(${ox}px,${oy}px) scale(${scale})`;}
 
-function updateTransform(){
-container.style.transform=`translate(${originX}px,${originY}px) scale(${scale})`;
-}
-
-window.addEventListener("wheel",e=>{
+window.onwheel=e=>{
 e.preventDefault();
-const zoom=e.deltaY<0?1.1:0.9;
-const oldScale=scale;
-scale=Math.min(Math.max(0.1,scale*zoom),8);
-
-originX=e.clientX-(e.clientX-originX)*(scale/oldScale);
-originY=e.clientY-(e.clientY-originY)*(scale/oldScale);
-updateTransform();
-},{passive:false});
-
-window.addEventListener("mousedown",e=>{
-if(e.target.closest("#ui"))return;
-isDragging=true;
-startX=e.clientX;
-startY=e.clientY;
-movedDuringDrag=false;
-});
-
-window.addEventListener("mousemove",e=>{
-if(!isDragging)return;
-if(Math.hypot(e.clientX-startX,e.clientY-startY)>2)movedDuringDrag=true;
-originX+=e.clientX-startX;
-originY+=e.clientY-startY;
-startX=e.clientX;
-startY=e.clientY;
-updateTransform();
-});
-
-window.addEventListener("mouseup",e=>{
-if(isDragging && !movedDuringDrag) deploy(e);
-isDragging=false;
-});
-
-async function loadMap(){
-const svgURL="https://upload.wikimedia.org/wikipedia/commons/b/bb/World_map_blank_gmt.svg";
-const res=await fetch(svgURL);
-const txt=await res.text();
-const blob=new Blob([txt],{type:"image/svg+xml"});
-const url=URL.createObjectURL(blob);
-const img=new Image();
-img.onload=()=>{
-mapCtx.fillStyle="#000";
-mapCtx.fillRect(0,0,W,H);
-mapCtx.filter="brightness(0.6) contrast(1.2)";
-mapCtx.drawImage(img,0,0,W,H);
-mapCtx.filter="none";
-
-maskCtx.drawImage(img,0,0,W,H);
-landMaskData=maskCtx.getImageData(0,0,W,H);
-render();
+const z=e.deltaY<0?1.1:0.9;
+const old=scale;
+scale=Math.min(Math.max(0.1,scale*z),8);
+ox=e.clientX-(e.clientX-ox)*(scale/old);
+oy=e.clientY-(e.clientY-oy)*(scale/old);
+update();
 };
-img.src=url;
+
+window.onmousedown=e=>{
+if(e.target.closest("#ui"))return;
+drag=true;sx=e.clientX;sy=e.clientY;moved=false;
+};
+window.onmousemove=e=>{
+if(!drag)return;
+if(Math.hypot(e.clientX-sx,e.clientY-sy)>2)moved=true;
+ox+=e.clientX-sx;oy+=e.clientY-sy;
+sx=e.clientX;sy=e.clientY;
+update();
+};
+window.onmouseup=e=>{
+if(drag&&!moved)deploy(e);
+drag=false;
+};
+
+function drawBaseMap(){
+mctx.fillStyle="#000";
+mctx.fillRect(0,0,W,H);
+
+// basit kara alan simülasyonu (offline world silhouette)
+mctx.fillStyle="#555";
+mctx.fillRect(200,200,3600,1600);
 }
 
 function isLand(x,y){
-if(!landMaskData)return false;
-const px=Math.floor(x),py=Math.floor(y);
-if(px<0||py<0||px>=W||py>=H)return false;
-const i=(py*W+px)*4;
-const r=landMaskData.data[i];
-const g=landMaskData.data[i+1];
-const b=landMaskData.data[i+2];
-return (r+g+b)>40;
+const p=mctx.getImageData(x,y,1,1).data;
+return p[0]>50;
 }
 
 function deploy(e){
-const x=(e.clientX-originX)/scale;
-const y=(e.clientY-originY)/scale;
+const x=(e.clientX-ox)/scale;
+const y=(e.clientY-oy)/scale;
 if(!isLand(x,y))return;
-
-const col=Math.floor(x/SLOT);
-const row=Math.floor(y/SLOT);
-gridData[col+","+row]=select.value;
-localStorage.setItem("world_v40",JSON.stringify(gridData));
+const c=Math.floor(x/SLOT);
+const r=Math.floor(y/SLOT);
+grid[c+","+r]=nation.value;
+localStorage.setItem("world_v41",JSON.stringify(grid));
 render();
 }
 
 function render(){
-paintCtx.clearRect(0,0,W,H);
-const visited=new Set();
-
-for(const key in gridData){
-if(visited.has(key))continue;
-const [c,r]=key.split(",").map(Number);
-const nation=gridData[key];
-
-const stack=[[c,r]];
-const group=[];
-visited.add(key);
-
-while(stack.length){
-const [x,y]=stack.pop();
-group.push([x,y]);
-[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{
-const nk=(x+d[0])+","+(y+d[1]);
-if(gridData[nk]===nation&&!visited.has(nk)){
-visited.add(nk);
-stack.push([x+d[0],y+d[1]]);
-}
-});
-}
-
-paintCtx.save();
-paintCtx.beginPath();
-group.forEach(([x,y])=>{
-paintCtx.rect(x*SLOT,y*SLOT,SLOT,SLOT);
-});
-paintCtx.clip();
-
-if(nation==="tr"){
-paintCtx.fillStyle="#E30A17";
-paintCtx.fillRect(0,0,W,H);
-}else{
-paintCtx.fillStyle="#00b5e2";
-paintCtx.fillRect(0,0,W,H);
-}
-
-paintCtx.globalCompositeOperation="destination-in";
-paintCtx.drawImage(maskCanvas,0,0);
-paintCtx.restore();
+pctx.clearRect(0,0,W,H);
+for(const k in grid){
+const [c,r]=k.split(",").map(Number);
+pctx.fillStyle=grid[k]==="tr"?"#E30A17":"#00b5e2";
+pctx.fillRect(c*SLOT,r*SLOT,SLOT,SLOT);
 }
 }
 
-loadMap();
-updateTransform();
+drawBaseMap();
+render();
+update();
 </script>
 </body>
 </html>
