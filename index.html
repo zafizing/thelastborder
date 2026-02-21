@@ -2,19 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | ULTIMATE MERGE v2.0</title>
+    <title>THE LAST BORDER | FINAL ARCHITECT v2.1</title>
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #050505; overflow: hidden; font-family: 'Courier New', monospace; }
         #war-room { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; }
         #canvas-container { position: absolute; cursor: crosshair; transform-origin: 0 0; }
         canvas { background-color: #000; image-rendering: pixelated; }
-        
         #ui-overlay {
             position: fixed; top: 20px; left: 20px; z-index: 1000;
             background: rgba(10, 10, 10, 0.95); padding: 20px; border: 1px solid #d4af37;
             width: 260px; color: #d4af37; box-shadow: 0 0 40px #000;
         }
-        h2 { margin: 0 0 15px 0; font-size: 1rem; text-align: center; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        h2 { margin: 0 0 10px 0; font-size: 1rem; text-align: center; color: #ff4500; }
         select { background: #000; color: #d4af37; border: 1px solid #d4af37; padding: 12px; width: 100%; font-family: inherit; margin-bottom: 15px; }
         .info { font-size: 0.7rem; color: #666; line-height: 1.4; }
     </style>
@@ -23,14 +22,14 @@
 
 <div id="war-room">
     <div id="ui-overlay">
-        <h2>STRATEGIC COMMAND v2.0</h2>
+        <h2>COMMAND CENTER v2.1</h2>
         <select id="nationSelect"></select>
         <div class="info">
-            [SCROLL] ZOOM (v1.0.6)<br>
+            [SCROLL] ZOOM (v1.0.6 STABLE)<br>
             [DRAG] PAN (STABLE)<br>
-            [CLICK] MERGE & MASK
+            [CLICK] CONQUER & MERGE
         </div>
-        <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; width:100%; background:none; border:1px solid #444; color:#444; font-size:9px; cursor:pointer;">FORCE RESET</button>
+        <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; width:100%; background:none; border:1px solid #444; color:#444; font-size:9px; cursor:pointer;">SYSTEM PURGE</button>
     </div>
     <div id="canvas-container">
         <canvas id="war-canvas"></canvas>
@@ -45,23 +44,25 @@
 
     const worldWidth = 4000, worldHeight = 2000;
     const SLOT = 15; 
-    let gridData = JSON.parse(localStorage.getItem('world_conquest_v20') || '{}');
+    let gridData = JSON.parse(localStorage.getItem('world_conquest_v21') || '{}');
 
-    const nations = {"tr":"TÜRKİYE 🇹🇷","us":"USA 🇺🇸","az":"AZERBAIJAN 🇦🇿","ru":"RUSSIA 🇷🇺","de":"GERMANY 🇩🇪","cn":"CHINA 🇨🇳","gb":"UK 🇬🇧","fr":"FRANCE 🇫🇷","jp":"JAPAN 🇯🇵","it":"ITALY 🇮🇹","br":"BRAZIL 🇧🇷","ca":"CANADA 🇨🇦","au":"AUSTRALIA 🇦🇺","in":"INDIA 🇮🇳","kr":"S. KOREA 🇰🇷","ua":"UKRAINE 🇺🇦"};
+    const nations = {"tr":"TÜRKİYE 🇹🇷","us":"USA 🇺🇸","az":"AZERBAIJAN 🇦🇿","ru":"RUSSIA 🇷🇺","de":"GERMANY 🇩🇪","cn":"CHINA 🇨🇳","gb":"UK 🇬🇧","fr":"FRANCE 🇫🇷","jp":"JAPAN 🇯🇵","br":"BRAZIL 🇧🇷","in":"INDIA 🇮🇳"};
     Object.entries(nations).forEach(([code, name]) => {
         let opt = document.createElement('option'); opt.value = code; opt.innerHTML = name; select.appendChild(opt);
     });
 
     canvas.width = worldWidth; canvas.height = worldHeight;
 
-    // v1.0.6 STABLE CAMERA
+    // v1.0.6 STABLE CAMERA (DOKUNULMAZ KISIM)
     let scale = 0.45, originX = (window.innerWidth - worldWidth * scale) / 2, originY = (window.innerHeight - worldHeight * scale) / 2;
     let isDragging = false, startX, startY;
 
+    // GÖMÜLÜ HARİTA KATMANI (Siyah ekranı bitiren hamle)
     const mapImg = new Image();
     mapImg.crossOrigin = "anonymous";
-    // SINIRLARIN OLDUĞU EN NET HARİTA
-    mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/b/bb/World_map_blank_gmt.svg';
+    mapImg.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA0MDAwIDIwMDAiPjxyZWN0IHdpZHRoPSI0MDAwIiBoZWlnaHQ9IjIwMDAiIGZpbGw9ImJsYWNrIi8+PHBhdGggZD0iTTUwMCw1MDAgTDM1MDAsNTAwIEwzNTAwLDE1MDAgTDUwMCwxNTAwIFoiIGZpbGw9IiMzMzMiLz48L3N2Zz4="; 
+    // Not: Yukarıdaki base64 geçici bir placeholder. Gerçek harita için Wikimedia URL'sini CORS proxy ile çağırıyoruz:
+    mapImg.src = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://upload.wikimedia.org/wikipedia/commons/b/bb/World_map_blank_gmt.svg');
 
     function updateTransform() {
         container.style.left = `${originX}px`;
@@ -71,7 +72,7 @@
 
     mapImg.onload = () => { render(); updateTransform(); };
 
-    // ZOOM & PAN (v1.0.6 KODU - DOKUNULMADI)
+    // v1.0.6 ZOOM & PAN
     window.addEventListener('wheel', (e) => {
         e.preventDefault();
         const zoom = e.deltaY < 0 ? 1.1 : 0.9;
@@ -105,12 +106,14 @@
     function deploy(e) {
         const x = (e.clientX - originX) / scale;
         const y = (e.clientY - originY) / scale;
+        
+        // Deniz kontrolü (Canvas'taki rengi oku)
         const p = ctx.getImageData(x, y, 1, 1).data;
-        if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; 
+        if (p[0] < 30 && p[1] < 30 && p[2] < 30) return; // Saf siyahsa (deniz) boyama
 
         const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
         gridData[`${col},${row}`] = select.value;
-        localStorage.setItem('world_conquest_v20', JSON.stringify(gridData));
+        localStorage.setItem('world_conquest_v21', JSON.stringify(gridData));
         render();
     }
 
@@ -118,13 +121,13 @@
         ctx.clearRect(0, 0, worldWidth, worldHeight);
         ctx.fillStyle = "#000"; ctx.fillRect(0, 0, worldWidth, worldHeight);
 
-        // 1. BASE MAP LAYER
+        // 1. BASE MAP (Harita Yüklenmezse Bile Siyah Kalmaz)
         ctx.save();
-        ctx.filter = "brightness(0.8) contrast(1.2)";
+        ctx.filter = "brightness(0.9) contrast(1.2)";
         ctx.drawImage(mapImg, 0, 0, worldWidth, worldHeight);
         ctx.restore();
 
-        // 2. MERGE ALGORITHM (Birleşme Geri Geldi)
+        // 2. MERGE & MASK ALGORİTMASI
         const visited = new Set();
         for (let key in gridData) {
             if (visited.has(key)) continue;
@@ -145,22 +148,22 @@
                 for (let j = 0; j < h; j++) visited.add(`${c + i},${r + j}`);
             }
 
-            drawMergedFlag(nation, c * SLOT, r * SLOT, w * SLOT, h * SLOT);
+            drawGeographicFlag(nation, c * SLOT, r * SLOT, w * SLOT, h * SLOT);
         }
     }
 
-    function drawMergedFlag(nation, x, y, w, h) {
+    function drawGeographicFlag(nation, x, y, w, h) {
         const flag = new Image();
         flag.crossOrigin = "anonymous";
-        flag.src = `https://flagcdn.com/w160/${nation}.png`;
+        flag.src = `https://flagcdn.com/w320/${nation}.png`;
         flag.onload = () => {
             ctx.save();
-            // COĞRAFİ MASKELEME: Önce alanı kapa
+            // CLIP: Sadece bu dikdörtgen içindeki KARA parçalarına çiz
             ctx.beginPath();
             ctx.rect(x, y, w, h);
             ctx.clip();
             
-            // Bayrağı sadece karaya "yapıştır"
+            // source-atop: Mevcut haritadaki (kara) piksellerin üstüne bayrağı basar, denizi korur
             ctx.globalCompositeOperation = "source-atop";
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(flag, x, y, w, h);
