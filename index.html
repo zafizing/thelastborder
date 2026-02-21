@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.9.2 STABLE</title>
+    <title>THE LAST BORDER | v7.9.5 STABLE</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
@@ -28,7 +28,7 @@
     </style>
 </head>
 <body>
-    <div id="loading">OPTIMIZING WAR ENGINE...</div>
+    <div id="loading">DECRYPTING WAR PROTOCOLS...</div>
     
     <div id="war-room">
         <div id="buy-popup">
@@ -67,9 +67,18 @@
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
 
     <script>
+        // MASTER CONFIG
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo"; 
         let CURRENT_SOL_USD = 110;
         const GROWTH_RATE = 1.25;
+
+        // Kararlı RPC Kapıları
+        const RPC_LIST = [
+            "https://api.mainnet-beta.solana.com",
+            "https://solana-mainnet.rpc.anker.com",
+            "https://rpc.ankr.com/solana"
+        ];
+        let rpcIdx = 0;
 
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -85,36 +94,35 @@
         let walletAddress = null;
         let selectedKey = null;
 
-        // DRAG VS CLICK tespiti için değişkenler
-        let mouseDownX, mouseDownY;
+        // Tıklama vs Sürükleme Kontrolü
+        let startX, startY, isDragging = false, dragDistance = 0;
 
         async function connectWallet() {
             const provider = window.solflare || window.solana;
-            if (!provider) return alert("Cüzdan bulunamadı!");
+            if (!provider) return alert("Cüzdan eklentisi bulunamadı!");
             try {
                 const resp = await provider.connect();
                 const pubKey = resp.publicKey || provider.publicKey;
-                if(!pubKey) throw new Error("Public Key alınamadı");
+                if (!pubKey) throw new Error("Cüzdan anahtarı alınamadı.");
                 walletAddress = pubKey.toString();
                 activeProvider = provider;
                 document.getElementById('wallet-status').innerText = "CONNECTED: " + walletAddress.slice(0,6);
                 document.getElementById('wallet-status').style.color = "#00ff00";
                 document.getElementById('connectBtn').style.display = "none";
-            } catch (err) { alert("Cüzdan hatası: " + err.message); }
+            } catch (err) { alert("Cüzdan Hatası: " + err.message); }
         }
 
-        async function handlePurchase(priceType) {
-            if (!walletAddress) return alert("Bağlı cüzdan yok!");
-            
-            const priceUSD = (priceType === 100) ? 100 : (gridPrices[selectedKey] || 1.00);
-            const solAmount = priceUSD / CURRENT_SOL_USD;
-            const lamports = Math.floor(solAmount * solanaWeb3.LAMPORTS_PER_SOL);
+        async function handlePurchase(type) {
+            if (!walletAddress) return alert("Önce cüzdan bağlayın!");
+            const price = (type === 100) ? 100 : (gridPrices[selectedKey] || 1.00);
+            const sol = price / CURRENT_SOL_USD;
+            const lamports = Math.floor(sol * solanaWeb3.LAMPORTS_PER_SOL);
 
             try {
-                const connection = new solanaWeb3.Connection("https://api.mainnet-beta.solana.com", 'confirmed');
-                const { blockhash } = await connection.getLatestBlockhash();
+                const conn = new solanaWeb3.Connection(RPC_LIST[rpcIdx], 'confirmed');
+                const { blockhash } = await conn.getLatestBlockhash();
                 
-                const transaction = new solanaWeb3.Transaction().add(
+                const tx = new solanaWeb3.Transaction().add(
                     solanaWeb3.SystemProgram.transfer({
                         fromPubkey: new solanaWeb3.PublicKey(walletAddress),
                         toPubkey: new solanaWeb3.PublicKey(MASTER_WALLET),
@@ -122,69 +130,74 @@
                     })
                 );
 
-                transaction.recentBlockhash = blockhash;
-                transaction.feePayer = new solanaWeb3.PublicKey(walletAddress);
+                tx.recentBlockhash = blockhash;
+                tx.feePayer = new solanaWeb3.PublicKey(walletAddress);
 
-                const signed = await activeProvider.signAndSendTransaction(transaction);
-                alert("Savaş fonu aktarıldı!");
+                const signed = await activeProvider.signAndSendTransaction(tx);
+                alert("İşlem Başarılı! Toprak fethedildi.");
                 
-                if(priceType !== 100) {
+                if(type !== 100) {
                     gridData[selectedKey] = document.getElementById('nationSelect').value;
-                    gridPrices[selectedKey] = priceUSD * GROWTH_RATE;
+                    gridPrices[selectedKey] = price * GROWTH_RATE;
                     localStorage.setItem('border_data_v7', JSON.stringify(gridData));
                     localStorage.setItem('border_prices_v7', JSON.stringify(gridPrices));
                     render();
                 }
                 closePopup();
-            } catch (err) { alert("İşlem başarısız: " + err.message); }
+            } catch (err) {
+                console.error(err);
+                rpcIdx = (rpcIdx + 1) % RPC_LIST.length; // Hata alırsan kapıyı değiştir
+                alert("Ağ Meşgul (403/500). Kapı değiştirildi, lütfen butona tekrar basın.");
+            }
         }
 
         function closePopup() { popup.style.display = 'none'; }
 
-        // --- HARİTA ETKİLEŞİMİ ---
+        // MOUSE ETKİLEŞİMİ (Düzeltilmiş)
         canvas.addEventListener('mousedown', e => {
-            mouseDownX = e.clientX;
-            mouseDownY = e.clientY;
+            startX = e.clientX; startY = e.clientY;
+            dragDistance = 0;
+            isDragging = true;
+        });
+
+        canvas.addEventListener('mousemove', e => {
+            if (isDragging) {
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                dragDistance += Math.sqrt(dx*dx + dy*dy);
+                // Haritayı kaydır
+                originX += dx; originY += dy;
+                startX = e.clientX; startY = e.clientY;
+                updateTransform();
+                closePopup();
+            }
         });
 
         canvas.addEventListener('mouseup', e => {
-            // Sürükleme mesafesini ölç
-            const diffX = Math.abs(e.clientX - mouseDownX);
-            const diffY = Math.abs(e.clientY - mouseDownY);
+            isDragging = false;
+            // Eğer fare 10 pikselden az hareket ettiyse bu bir tıklamadır
+            if (dragDistance < 10) {
+                const rect = canvas.getBoundingClientRect();
+                const x = (e.clientX - rect.left) / (rect.width / W);
+                const y = (e.clientY - rect.top) / (rect.height / H);
+                const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
+                selectedKey = `${col},${row}`;
+                
+                let p = gridPrices[selectedKey] || 1.00;
+                document.getElementById('intel-coords').innerText = `COORD: ${selectedKey}`;
+                document.getElementById('intel-owner').innerText = gridData[selectedKey] ? `OWNER: ${gridData[selectedKey].toUpperCase()}` : "OWNER: UNCLAIMED";
 
-            // Eğer mouse 5 pikselden fazla hareket ettiyse bu bir sürüklemedir, tıklama değil.
-            if (diffX > 5 || diffY > 5) return;
-
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / (rect.width / W);
-            const y = (e.clientY - rect.top) / (rect.height / H);
-            const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
-            selectedKey = `${col},${row}`;
-            
-            let price = gridPrices[selectedKey] || 1.00;
-            document.getElementById('intel-coords').innerText = `COORD: ${selectedKey}`;
-            document.getElementById('intel-owner').innerText = gridData[selectedKey] ? `OWNER: ${gridData[selectedKey].toUpperCase()}` : "OWNER: UNCLAIMED";
-
-            popup.style.left = `${e.clientX + 10}px`;
-            popup.style.top = `${e.clientY + 10}px`;
-            document.getElementById('pop-price').innerText = price.toFixed(2) + " USD";
-            popup.style.display = 'block';
-        });
-
-        // ZOOM & DRAG
-        let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
-        let isDragging = false, startX, startY;
-        function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
-
-        window.addEventListener('mousedown', e => { 
-            if(e.target.tagName === 'CANVAS') {
-                isDragging = true; startX = e.clientX - originX; startY = e.clientY - originY; 
+                popup.style.left = `${e.clientX + 5}px`;
+                popup.style.top = `${e.clientY + 5}px`;
+                document.getElementById('pop-price').innerText = p.toFixed(2) + " USD";
+                popup.style.display = 'block';
             }
         });
-        window.addEventListener('mousemove', e => {
-            if (isDragging) { originX = e.clientX - startX; originY = e.clientY - startY; updateTransform(); closePopup(); }
-        });
-        window.addEventListener('mouseup', () => isDragging = false);
+
+        // ZOOM
+        let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
+        function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
+        
         window.addEventListener('wheel', e => {
             e.preventDefault(); const old = scale;
             scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 30);
@@ -193,11 +206,11 @@
             updateTransform(); closePopup();
         }, { passive: false });
 
-        // --- INIT ---
+        // INIT & RENDER
         async function init() {
             const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
-            const countries = await res.json();
-            countries.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
+            const data = await res.json();
+            data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
                 let opt = document.createElement('option');
                 opt.value = c.cca2.toLowerCase(); opt.textContent = c.name.common.toUpperCase();
                 document.getElementById('nationSelect').appendChild(opt);
