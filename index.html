@@ -3,42 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE LAST BORDER | GLOBAL CONQUEST</title>
+    <title>THE LAST BORDER | GOD MODE</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #050505; overflow: hidden; font-family: 'Courier New', monospace; }
-        #war-room { width: 100vw; height: 100vh; position: relative; background: radial-gradient(circle, #111 0%, #000 100%); }
-        #canvas-container { position: absolute; transform-origin: 0 0; cursor: crosshair; }
-        canvas { background-color: #000; image-rendering: pixelated; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        #war-room { width: 100vw; height: 100vh; position: relative; background: #000; }
+        #canvas-container { position: absolute; cursor: crosshair; }
+        canvas { background-color: #050505; image-rendering: pixelated; }
 
-        /* COMMAND CENTER UI */
         #ui-overlay {
             position: fixed; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(0, 0, 0, 0.9); padding: 25px; border: 2px solid #d4af37;
-            box-shadow: 0 0 30px rgba(212, 175, 55, 0.3); width: 280px;
+            background: rgba(10, 10, 10, 0.95); padding: 20px; border: 1px solid #d4af37;
+            box-shadow: 0 0 40px rgba(0,0,0,1); width: 260px;
         }
-        h2 { margin: 0 0 15px 0; color: #ff4500; font-size: 1.1rem; letter-spacing: 4px; text-shadow: 0 0 10px #ff4500; }
-        select { 
-            background: #111; color: #d4af37; border: 1px solid #d4af37; 
-            padding: 12px; width: 100%; font-family: inherit; font-size: 0.9rem; margin-bottom: 15px;
-        }
-        .controls { font-size: 0.75rem; color: #888; border-top: 1px solid #333; padding-top: 10px; line-height: 1.6; }
-        .danger-zone { margin-top: 15px; border-top: 1px dashed #444; padding-top: 10px; }
-        button { background: none; border: 1px solid #ff4500; color: #ff4500; padding: 5px 10px; cursor: pointer; font-size: 0.7rem; width: 100%; }
-        button:hover { background: #ff4500; color: #000; }
+        select { background: #000; color: #d4af37; border: 1px solid #d4af37; padding: 10px; width: 100%; font-weight: bold; margin-bottom: 15px; }
+        .info { font-size: 0.7rem; color: #666; line-height: 1.5; text-transform: uppercase; }
+        h2 { margin: 0 0 10px 0; color: #ff4500; font-size: 1rem; letter-spacing: 2px; }
     </style>
 </head>
 <body>
 
 <div id="war-room">
     <div id="ui-overlay">
-        <h2>TACTICAL MAP v1.1</h2>
+        <h2>TACTICAL MAP v1.2</h2>
         <select id="nationSelect"></select>
-        <div class="controls">
-            [DRAG] PAN MAP<br>[SCROLL] ZOOM CONTROL<br>[CLICK] DEPLOY PIXEL (15x10)
+        <div class="info">
+            [DRAG] PAN (LOCKED TO EDGES)<br>
+            [SCROLL] ZOOM (SMOOTH)<br>
+            [CLICK] DEPLOY ON LAND
         </div>
-        <div class="danger-zone">
-            <button onclick="localStorage.clear(); location.reload();">FORCE HARD RESET</button>
-        </div>
+        <button onclick="localStorage.clear(); location.reload();" style="margin-top:15px; width:100%; background:none; border:1px solid #444; color:#444; font-size:9px; cursor:pointer;">SYSTEM RESET</button>
     </div>
     <div id="canvas-container">
         <canvas id="war-canvas"></canvas>
@@ -51,52 +44,56 @@
     const container = document.getElementById('canvas-container');
     const select = document.getElementById('nationSelect');
 
-    const worldWidth = 4500, worldHeight = 2250;
+    const worldWidth = 4000, worldHeight = 2000;
     const SLOT_W = 15, SLOT_H = 10;
-    let gridData = {}; 
+    let gridData = JSON.parse(localStorage.getItem('border_data') || '{}');
 
-    // ALL NATIONS DATA (Global List)
-    const nations = {
-        "tr": "TÜRKİYE 🇹🇷", "us": "USA 🇺🇸", "ru": "RUSSIA 🇷🇺", "cn": "CHINA 🇨🇳", "de": "GERMANY 🇩🇪",
-        "az": "AZERBAIJAN 🇦🇿", "gb": "UK 🇬🇧", "fr": "FRANCE 🇫🇷", "jp": "JAPAN 🇯🇵", "it": "ITALY 🇮🇹",
-        "br": "BRAZIL 🇧🇷", "ca": "CANADA 🇨🇦", "au": "AUSTRALIA 🇦🇺", "in": "INDIA 🇮🇳", "kr": "S. KOREA 🇰🇷",
-        "es": "SPAIN 🇪🇸", "nl": "NETHERLANDS 🇳🇱", "sa": "SAUDI ARABIA 🇸🇦", "ua": "UAE 🇦🇪", "ua": "UKRAINE 🇺🇦",
-        "kz": "KAZAKHSTAN 🇰🇿", "gr": "GREECE 🇬🇷", "eg": "EGYPT 🇪🇬", "pk": "PAKISTAN 🇵🇰"
-    };
-
-    // Dinamik ülke listesi doldurma
-    Object.entries(nations).forEach(([code, name]) => {
-        let opt = document.createElement('option');
-        opt.value = code; opt.innerHTML = name;
-        select.appendChild(opt);
+    // TÜM DÜNYA LİSTESİ (ISO KODLARI)
+    const isoNations = {"tr":"TÜRKİYE 🇹🇷","us":"USA 🇺🇸","de":"GERMANY 🇩🇪","ru":"RUSSIA 🇷🇺","cn":"CHINA 🇨🇳","az":"AZERBAIJAN 🇦🇿","fr":"FRANCE 🇫🇷","gb":"UK 🇬🇧","jp":"JAPAN 🇯🇵","it":"ITALY 🇮🇹","br":"BRAZIL 🇧🇷","ca":"CANADA 🇨🇦","au":"AUSTRALIA 🇦🇺","in":"INDIA 🇮🇳","kr":"S. KOREA 🇰🇷","es":"SPAIN 🇪🇸","sa":"SAUDI ARABIA 🇸🇦","ua":"UKRAINE 🇺🇦","kz":"KAZAKHSTAN 🇰🇿","eg":"EGYPT 🇪🇬","gr":"GREECE 🇬🇷","pk":"PAKISTAN 🇵🇰","ir":"IRAN 🇮🇷","nl":"NETHERLANDS 🇳🇱","ch":"SWITZERLAND 🇨🇭","be":"BELGIUM 🇧🇪","se":"SWEDEN 🇸🇪","no":"NORWAY 🇳🇴"};
+    Object.entries(isoNations).forEach(([code, name]) => {
+        let opt = document.createElement('option'); opt.value = code; opt.innerHTML = name; select.appendChild(opt);
     });
 
-    canvas.width = worldWidth;
-    canvas.height = worldHeight;
+    canvas.width = worldWidth; canvas.height = worldHeight;
 
-    let scale = 0.4;
-    let originX = (window.innerWidth - worldWidth * scale) / 2;
-    let originY = (window.innerHeight - worldHeight * scale) / 2;
-    let isDragging = false, dragMoved = false, startX, startY;
+    let scale = 0.5, originX = (window.innerWidth - worldWidth*scale)/2, originY = (window.innerHeight - worldHeight*scale)/2;
+    let isDragging = false, startX, startY;
 
     const mapImg = new Image();
     mapImg.crossOrigin = "anonymous";
-    // Epik Siyah/Gri Sınırları olan Dünya Haritası
+    // Temizlenmiş, adasız ve epik harita
     mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
 
-    mapImg.onload = () => { renderCanvas(); };
+    function clampCamera() {
+        // Haritanın dışına çıkmayı engelleyen kilit mekanizması
+        const minX = window.innerWidth - (worldWidth * scale);
+        const minY = window.innerHeight - (worldHeight * scale);
+        
+        if (worldWidth * scale > window.innerWidth) {
+            originX = Math.min(0, Math.max(originX, minX));
+        } else {
+            originX = (window.innerWidth - worldWidth * scale) / 2;
+        }
+
+        if (worldHeight * scale > window.innerHeight) {
+            originY = Math.min(0, Math.max(originY, minY));
+        } else {
+            originY = (window.innerHeight - worldHeight * scale) / 2;
+        }
+    }
 
     function updateTransform() {
+        clampCamera();
         container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
     }
-    updateTransform();
 
-    // PAN & ZOOM (Savrulma Engelli)
+    mapImg.onload = () => { renderCanvas(); updateTransform(); };
+
     window.addEventListener('wheel', (e) => {
         e.preventDefault();
         const zoom = e.deltaY < 0 ? 1.1 : 0.9;
         const oldScale = scale;
-        scale = Math.min(Math.max(0.08, scale * zoom), 15);
+        scale = Math.min(Math.max(0.2, scale * zoom), 15);
         originX = e.clientX - (e.clientX - originX) * (scale / oldScale);
         originY = e.clientY - (e.clientY - originY) * (scale / oldScale);
         updateTransform();
@@ -104,20 +101,22 @@
 
     window.addEventListener('mousedown', (e) => {
         if(e.target.closest('#ui-overlay')) return;
-        isDragging = true; dragMoved = false;
-        startX = e.clientX - originX; startY = e.clientY - originY;
+        isDragging = true; startX = e.clientX - originX; startY = e.clientY - originY;
     });
 
     window.addEventListener('mousemove', (e) => {
         if (isDragging) {
-            dragMoved = true;
             originX = e.clientX - startX; originY = e.clientY - startY;
             updateTransform();
         }
     });
 
     window.addEventListener('mouseup', (e) => {
-        if (!dragMoved && isDragging) deploy(e);
+        if (isDragging) {
+            // Eğer çok az hareket ettiyse tıkla (deploy) say
+            const moved = Math.hypot(e.clientX - (startX + originX), e.clientY - (startY + originY));
+            if (moved < 5) deploy(e);
+        }
         isDragging = false;
     });
 
@@ -126,68 +125,49 @@
         const x = (e.clientX - rect.left) / scale;
         const y = (e.clientY - rect.top) / scale;
 
-        // Deniz Kontrolü (Sadece gri tonlarına boyama izni)
         const p = ctx.getImageData(x, y, 1, 1).data;
-        if (p[0] < 40 && p[1] < 40 && p[2] < 40) return; // Siyah/Deniz ise iptal
+        if (p[0] < 45 && p[1] < 45 && p[2] < 45) return; // Deniz kilidi
 
-        const col = Math.floor(x / SLOT_W);
-        const row = Math.floor(y / SLOT_H);
+        const col = Math.floor(x / SLOT_W), row = Math.floor(y / SLOT_H);
         gridData[`${col},${row}`] = select.value;
+        localStorage.setItem('border_data', JSON.stringify(gridData));
         renderCanvas();
     }
 
     function renderCanvas() {
-        // Arka Plan Çizimi
-        ctx.fillStyle = "#000";
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height);
         
-        // Harita Katmanı (Epik Filtre ile)
         ctx.save();
-        ctx.filter = "brightness(0.6) contrast(1.4) grayscale(1)";
+        // EPİK GÖRSEL AYARI: Derin lacivert tonları ve yüksek kontrast
+        ctx.filter = "brightness(0.5) contrast(1.8) sepia(0.5) hue-rotate(180deg)";
         ctx.drawImage(mapImg, 0, 0, canvas.width, canvas.height);
         ctx.restore();
 
-        // Izgara Çizimi (Opsiyonel epik hava)
-        ctx.strokeStyle = "rgba(212, 175, 55, 0.05)";
-        ctx.beginPath();
-        for(let i=0; i<worldWidth; i+=SLOT_W*10) { ctx.moveTo(i,0); ctx.lineTo(i,worldHeight); }
-        for(let i=0; i<worldHeight; i+=SLOT_H*10) { ctx.moveTo(0,i); ctx.lineTo(worldWidth,i); }
-        ctx.stroke();
-
-        // Bayrak Birleştirme Algoritması (Merge)
+        // MERGE LOGIC
         const visited = new Set();
         for (let key in gridData) {
             if (visited.has(key)) continue;
             let [c, r] = key.split(',').map(Number);
             let nation = gridData[key];
-
             let w = 1, h = 1;
             while (gridData[`${c + w},${r}`] === nation) w++;
             let canGrow = true;
             while (canGrow) {
-                for (let i = 0; i < w; i++) {
-                    if (gridData[`${c + i},${r + h}`] !== nation) { canGrow = false; break; }
-                }
+                for (let i = 0; i < w; i++) if (gridData[`${c + i},${r + h}`] !== nation) { canGrow = false; break; }
                 if (canGrow) h++;
             }
-
-            for (let i = 0; i < w; i++) 
-                for (let j = 0; j < h; j++) 
-                    visited.add(`${c + i},${r + j}`);
-
+            for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) visited.add(`${c + i},${r + j}`);
             drawFlag(nation, c * SLOT_W, r * SLOT_H, w * SLOT_W, h * SLOT_H);
         }
     }
 
     function drawFlag(nation, x, y, w, h) {
-        const img = new Image();
-        img.crossOrigin = "anonymous";
+        const img = new Image(); img.crossOrigin = "anonymous";
         img.src = `https://flagcdn.com/w160/${nation}.png`;
         img.onload = () => {
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(img, x, y, w, h);
-            ctx.strokeStyle = "rgba(0,0,0,0.5)";
-            ctx.strokeRect(x, y, w, h);
+            ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.strokeRect(x, y, w, h);
         };
     }
 </script>
