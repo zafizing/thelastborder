@@ -2,32 +2,33 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.5.0 STEEL LOGIC</title>
+    <title>THE LAST BORDER | v7.5.1 INTEL</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
+        canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
         
-        canvas { 
-            background-color: #0d0d0d; 
-            image-rendering: pixelated;
-            cursor: crosshair; 
-        }
-
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); }
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #arsenal-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
+        
+        /* YENİ: SAĞ ALT BİLGİ PANELİ */
+        #pixel-intel { 
+            bottom: 20px; right: 20px; width: 200px; 
+            border: 1px solid #00ff00; color: #00ff00;
+            font-size: 12px; line-height: 1.6; display: none;
+        }
+        .intel-label { color: #ff4500; font-weight: bold; }
+
         select, input { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; box-sizing: border-box; margin-top: 8px; font-family: inherit; font-size: 11px; outline: none; }
         button { width: 100%; padding: 10px; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; font-weight: bold; border: none; }
         .ammo-display { font-size: 28px; color: #00ff00; text-align: center; margin: 10px 0; font-weight: bold; }
-        .btn-buy { background: #00ff00; color: #000; }
-        
-        #intel-panel { position: fixed; bottom: 20px; left: 20px; font-size: 11px; color: #ff4500; pointer-events: none; background: rgba(0,0,0,0.7); padding: 5px; }
         #loading { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; justify-content: center; align-items: center; color: #ff4500; }
     </style>
 </head>
 <body>
-    <div id="loading">STABILIZING 100,000 SLOTS...</div>
+    <div id="loading">SCANNING TERRITORIES...</div>
     <div id="war-room">
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
@@ -38,12 +39,20 @@
                 <button style="background: #ff4500; color: #fff;" onclick="foundNation()">ESTABLISH STATE</button>
             </div>
         </div>
+
         <div id="arsenal-panel" class="panel">
             <h2 style="margin:0; color: #00ff00; font-size: 16px; text-align: center;">ARSENAL</h2>
             <div class="ammo-display" id="ammoCount">0</div>
-            <button class="btn-buy" onclick="buyAmmo(1000)">+1000 PX (SOL)</button>
+            <button style="background: #00ff00; color: #000;" onclick="buyAmmo(1000)">+1000 PX (SOL)</button>
         </div>
-        <div id="intel-panel">COORD: 0,0 | STATUS: STANDBY</div>
+
+        <div id="pixel-intel" class="panel">
+            <div><span class="intel-label">TERRITORY:</span> <span id="intel-name">NONE</span></div>
+            <div><span class="intel-label">PRICE:</span> <span id="intel-price">1.00 USD</span></div>
+            <div><span class="intel-label">STATUS:</span> <span id="intel-status">UNCLAIMED</span></div>
+            <div style="font-size: 10px; color: #444; margin-top: 5px;">COORDS: <span id="intel-coords">0,0</span></div>
+        </div>
+
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
     </div>
 
@@ -52,6 +61,7 @@
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
+        const intelPanel = document.getElementById('pixel-intel');
 
         const W = 4000, H = 2000, SLOT = 8.94; 
         canvas.width = W; canvas.height = H;
@@ -69,7 +79,6 @@
                 const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
                 const countries = await res.json();
                 countries.sort((a, b) => a.name.common.localeCompare(b.name.common));
-                
                 const addOpt = (code, name) => {
                     const opt = document.createElement('option');
                     opt.value = code; opt.textContent = name;
@@ -78,13 +87,11 @@
                     img.src = code.startsWith('http') ? code : `https://flagcdn.com/w320/${code}.png`;
                     img.onload = () => { flagCache[code] = img; render(); };
                 };
-
                 countries.forEach(c => {
                     let code = c.cca2.toLowerCase();
                     let name = (code === "tr") ? "TÜRKİYE" : c.name.common.toUpperCase();
                     addOpt(code, name);
                 });
-                
                 document.getElementById('ammoCount').innerText = ammo;
                 document.getElementById('loading').style.display = 'none';
             } catch (e) {}
@@ -100,6 +107,44 @@
 
         function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
 
+        // MOUSE MOVE İLE BİLGİ PANELİ GÜNCELLEME
+        window.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) / (rect.width / W);
+            const y = (e.clientY - rect.top) / (rect.height / H);
+
+            if (x >= 0 && x <= W && y >= 0 && y <= H) {
+                const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
+                const key = `${col},${row}`;
+                const nationCode = gridData[key];
+                
+                intelPanel.style.display = 'block';
+                document.getElementById('intel-coords').innerText = `${col},${row}`;
+                
+                if (nationCode) {
+                    const option = Array.from(nationSelect.options).find(opt => opt.value === nationCode);
+                    document.getElementById('intel-name').innerText = option ? option.text : "CUSTOM STATE";
+                    document.getElementById('intel-status').innerText = "OCCUPIED";
+                    document.getElementById('intel-status').style.color = "#ff4500";
+                    document.getElementById('intel-price').innerText = "1.10 USD"; // Örnek artış
+                } else {
+                    document.getElementById('intel-name').innerText = "NONE";
+                    document.getElementById('intel-status').innerText = "AVAILABLE";
+                    document.getElementById('intel-status').style.color = "#00ff00";
+                    document.getElementById('intel-price').innerText = "1.00 USD";
+                }
+            } else {
+                intelPanel.style.display = 'none';
+            }
+
+            if (isDragging) {
+                dragMoved = true;
+                originX = e.clientX - startX;
+                originY = e.clientY - startY;
+                updateTransform();
+            }
+        });
+
         window.addEventListener('wheel', e => {
             e.preventDefault(); const old = scale;
             scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 25);
@@ -109,7 +154,6 @@
         }, { passive: false });
 
         window.addEventListener('mousedown', e => { if(!e.target.closest('.panel')) { isDragging = true; dragMoved = false; startX = e.clientX - originX; startY = e.clientY - originY; }});
-        window.addEventListener('mousemove', e => { if (isDragging) { dragMoved = true; originX = e.clientX - startX; originY = e.clientY - startY; updateTransform(); }});
         window.addEventListener('mouseup', e => { if (isDragging && !dragMoved) handleConquer(e); isDragging = false; });
 
         function handleConquer(e) {
@@ -118,11 +162,8 @@
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
             
-            if (x < 0 || y < 0 || x > W || y > H) return;
-
-            // SINIR KONTROLÜ (KESİN ÇÖZÜM)
             const p = hitCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; // Siyah/Koyu gri (deniz) ise çık
+            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return;
 
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
@@ -138,23 +179,15 @@
         function render() {
             ctx.imageSmoothingEnabled = false;
             ctx.clearRect(0, 0, W, H);
-            
-            // Önce tüm bayrakları çiz
             for (let key in gridData) {
                 let [c, r] = key.split(',').map(Number);
                 const img = flagCache[gridData[key]];
-                if(img) {
-                    ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), Math.ceil(SLOT), Math.ceil(SLOT));
-                }
+                if(img) ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), Math.ceil(SLOT), Math.ceil(SLOT));
             }
-            
-            // Sonra harita sınırlarını bayrakların üzerine "maske" olarak bindir
             ctx.save();
             ctx.globalCompositeOperation = "destination-in";
             ctx.drawImage(mapImg, 0, 0, W, H);
             ctx.restore();
-            
-            // En alta denizi tekrar ekle (Görsel bütünlük için)
             ctx.save();
             ctx.globalCompositeOperation = "destination-over";
             ctx.drawImage(mapImg, 0, 0, W, H);
