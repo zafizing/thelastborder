@@ -2,19 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.4.4 SHARP</title>
+    <title>THE LAST BORDER | v7.4.5 FINAL JİLET</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
         
-        /* CSS Seviyesinde Netlik Koruması */
         canvas { 
             background-color: #0d0d0d; 
-            image-rendering: optimizeSpeed;             /* Jilet gibi pikseller */
-            image-rendering: -moz-crisp-edges;          /* Firefox */
-            image-rendering: -webkit-optimize-contrast; /* Webkit */
-            image-rendering: pixelated;                 /* Modern Browsers */
+            image-rendering: pixelated; /* Modern tarayıcılar için piksel netliği */
             cursor: crosshair; 
         }
 
@@ -34,7 +30,7 @@
 </head>
 <body>
 
-    <div id="loading">SHARPENING PIXELS...</div>
+    <div id="loading">RESTRICTION PROTOCOLS ACTIVE...</div>
 
     <div id="war-room">
         <div id="ui-overlay" class="panel">
@@ -59,7 +55,7 @@
 
     <script>
         const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: false }); // Alpha false performansı artırır
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
 
@@ -71,6 +67,7 @@
         let customNations = JSON.parse(localStorage.getItem('custom_v7.4') || '[]');
         const flagCache = {};
 
+        // Sınır Dedektörü (Vazgeçilmez)
         const hitCanvas = document.createElement('canvas');
         hitCanvas.width = W; hitCanvas.height = H;
         const hitCtx = hitCanvas.getContext('2d');
@@ -127,17 +124,20 @@
 
         function handleConquer(e) {
             if (ammo <= 0) return;
-            const rect = container.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / scale;
-            const y = (e.clientY - rect.top) / scale;
+            const rect = canvas.getBoundingClientRect(); // Container yerine Canvas'tan ölçü al
+            const x = (e.clientX - rect.left) / (rect.width / W);
+            const y = (e.clientY - rect.top) / (rect.height / H);
 
             if (x < 0 || y < 0 || x > W || y > H) return;
 
+            // SINIR KONTROLÜ GERİ GELDİ
             const p = hitCtx.getImageData(x, y, 1, 1).data;
-            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return;
+            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; // Deniz ise boyama
 
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
+            
+            // ÜST ÜSTE YAZMA SERBEST (Kendi ülkense mermi harcama)
             if (gridData[key] === nationSelect.value) return;
 
             ammo--; localStorage.setItem('ammo_v7.4', ammo);
@@ -148,12 +148,8 @@
         }
 
         function render() {
-            // KRİTİK: Bulanıklaştırmayı kapat
+            // NETLİK AYARLARI
             ctx.imageSmoothingEnabled = false;
-            ctx.mozImageSmoothingEnabled = false;
-            ctx.webkitImageSmoothingEnabled = false;
-            ctx.msImageSmoothingEnabled = false;
-
             ctx.clearRect(0, 0, W, H);
             ctx.drawImage(mapImg, 0, 0, W, H);
 
@@ -164,7 +160,7 @@
                 if(img) {
                     ctx.save();
                     ctx.globalCompositeOperation = "source-atop";
-                    // Math.floor ile tam piksel hizalaması
+                    // Netlik için tamsayı koordinatlar
                     ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), SLOT, SLOT);
                     ctx.restore();
                 }
