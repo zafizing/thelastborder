@@ -17,6 +17,7 @@
             margin: 0;
             text-align: center;
             background-image: url('https://www.transparenttextures.com/patterns/old-map.png');
+            overflow: hidden;
         }
         h1 {
             font-size: 3.5rem;
@@ -64,6 +65,54 @@
             color: #666;
             letter-spacing: 2px;
         }
+
+        /* WALLET SELECTION MODAL */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.9);
+        }
+        .modal-content {
+            background-color: #1a1a1a;
+            margin: 15% auto;
+            padding: 30px;
+            border: 2px solid #d4af37;
+            width: 320px;
+            border-radius: 5px;
+            box-shadow: 0px 0px 30px rgba(212, 175, 55, 0.3);
+        }
+        .wallet-option {
+            display: block;
+            width: 100%;
+            padding: 15px;
+            margin: 15px 0;
+            background: #2a2a2a;
+            color: #d4af37;
+            border: 1px solid #d4af37;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
+            text-transform: uppercase;
+            transition: 0.2s;
+        }
+        .wallet-option:hover {
+            background: #d4af37;
+            color: #1a1a1a;
+        }
+        .close-modal {
+            background: none;
+            border: none;
+            color: #666;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 0.8rem;
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -71,9 +120,18 @@
     <h1>THE LAST BORDER</h1>
     <p>"Your borders were drawn by others. Are you strong enough to erase them?"</p>
     
-    <button id="walletButton" class="cta-button" onclick="connectWallet()">JOIN THE ARMY (CONNECT WALLET)</button>
+    <button id="walletButton" class="cta-button" onclick="openModal()">JOIN THE ARMY (CONNECT WALLET)</button>
 
     <div id="countdown">LOADING...</div>
+
+    <div id="walletModal" class="modal">
+        <div class="modal-content">
+            <h2 style="color: #d4af37; font-size: 1.5rem; margin-top: 0;">CHOOSE WEAPON</h2>
+            <button class="wallet-option" onclick="selectWallet('phantom')">PHANTOM</button>
+            <button class="wallet-option" onclick="selectWallet('solflare')">SOLFLARE</button>
+            <button class="close-modal" onclick="closeModal()">ABORT MISSION</button>
+        </div>
+    </div>
 
     <div class="footer">
         DECENTRALIZED CONQUEST PROTOCOL | POWERED BY SOLANA
@@ -105,36 +163,53 @@
         setInterval(updateCountdown, 1000);
         updateCountdown();
 
-        // --- CÜZDAN BAĞLAMA (PHANTOM & SOLFLARE) ---
-        async function connectWallet() {
-            const button = document.getElementById('walletButton');
-            
-            // Cüzdan Sağlayıcısını Seç
-            const getProvider = () => {
-                if ('phantom' in window) { return window.phantom?.solana; }
-                if ('solflare' in window) { return window.solflare; }
-                if ('solana' in window) { return window.solana; }
-                return null;
-            };
+        // --- CÜZDAN SEÇİM MODAL MANTIĞI ---
+        function openModal() {
+            document.getElementById('walletModal').style.display = "block";
+        }
 
-            const provider = getProvider();
+        function closeModal() {
+            document.getElementById('walletModal').style.display = "none";
+        }
+
+        // Modal dışına tıklayınca kapatma
+        window.onclick = function(event) {
+            let modal = document.getElementById('walletModal');
+            if (event.target == modal) {
+                closeModal();
+            }
+        }
+
+        // --- CÜZDAN BAĞLAMA FONKSİYONU ---
+        async function selectWallet(walletType) {
+            closeModal();
+            const button = document.getElementById('walletButton');
+            let provider = null;
+
+            if (walletType === 'phantom') {
+                provider = window.phantom?.solana || window.solana;
+                if (!provider?.isPhantom) provider = null;
+            } else if (walletType === 'solflare') {
+                provider = window.solflare;
+            }
 
             if (provider) {
                 try {
                     const response = await provider.connect();
                     const pubKey = response.publicKey.toString();
                     
-                    // Başarılı Bağlantı: Buton rengini ve metnini güncelle
+                    // Bağlantı Başarılı
                     button.innerText = pubKey.slice(0, 4) + "..." + pubKey.slice(-4);
-                    button.style.backgroundColor = "#4CAF50"; 
+                    button.style.backgroundColor = "#4CAF50";
                     button.style.color = "white";
                     console.log("Soldier address:", pubKey);
                 } catch (err) {
-                    console.error("Connection rejected by user");
+                    console.log("User rejected connection");
                 }
             } else {
-                alert("Solana wallet not found! Please install Phantom or Solflare.");
-                window.open("https://phantom.app/", "_blank");
+                alert(walletType.toUpperCase() + " not found! Please install the extension.");
+                if(walletType === 'phantom') window.open("https://phantom.app/", "_blank");
+                else window.open("https://solflare.com/", "_blank");
             }
         }
     </script>
