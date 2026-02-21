@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v8.3.0 STABLE</title>
+    <title>THE LAST BORDER | v8.4.0 STABLE</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
@@ -10,7 +10,7 @@
         canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); }
         
-        #pixel-intel { bottom: 20px; right: 20px; width: 220px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; }
+        #pixel-intel { bottom: 20px; right: 20px; width: 250px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; }
         #buy-popup { 
             position: absolute; z-index: 1000; display: none;
             background: #000; border: 2px solid #ff4500; padding: 12px;
@@ -21,20 +21,21 @@
         #wallet-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
         
         input, select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 8px; width: 100%; box-sizing: border-box; margin-top: 5px; font-family: inherit; }
-        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-weight: bold; border: none; }
-        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; justify-content: center; align-items: center; color: #ff4500; }
+        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-weight: bold; border: none; transition: 0.3s; }
+        button:hover { opacity: 0.8; transform: scale(1.02); }
+        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; justify-content: center; align-items: center; color: #ff4500; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="loading">SYNCHRONIZING WITH PIXIECLOVER NODE...</div>
+    <div id="loading">INITIALIZING GLOBAL WAR MAP...</div>
     
     <div id="war-room">
         <div id="buy-popup">
             <span class="close-pop" onclick="closePopup()">×</span>
             <div style="text-align: center;">
-                <div style="color:#ff4500; font-weight:bold; font-size:10px;">CONQUER</div>
+                <div style="color:#ff4500; font-weight:bold; font-size:10px;">CONQUER PIXEL</div>
                 <div id="pop-price" style="color:#00ff00; font-size:14px; margin: 8px 0;">1.00 USD</div>
-                <button style="background: #ff4500; color: #fff;" onclick="handlePurchase(1)">CONFIRM TRANSACTION</button>
+                <button style="background: #ff4500; color: #fff;" onclick="handlePurchase(1)">EXECUTE COMMAND</button>
             </div>
         </div>
 
@@ -49,15 +50,15 @@
         </div>
 
         <div id="wallet-panel" class="panel">
-            <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center;">OFFLINE</div>
+            <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center; margin-bottom: 5px;">STATUS: OFFLINE</div>
             <button id="connectBtn" style="background: #00ff00; color: #000;" onclick="connectWallet()">CONNECT WALLET</button>
         </div>
 
         <div id="pixel-intel" class="panel">
-            <div style="color:#ff4500; font-weight:bold;">LIVE INTEL FEED</div>
-            <div id="intel-coords">COORD: 0,0</div>
-            <div id="intel-owner">OWNER: UNCLAIMED</div>
-            <div id="intel-price">PRICE: 1.00 USD</div>
+            <div style="color:#ff4500; font-weight:bold; border-bottom: 1px solid #ff4500; margin-bottom: 5px;">LIVE INTEL FEED</div>
+            <div id="intel-coords">COORD: 0, 0</div>
+            <div id="intel-status">STATUS: UNCLAIMED</div>
+            <div id="intel-price">VALUATION: 1.00 USD</div>
         </div>
 
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
@@ -66,14 +67,13 @@
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
 
     <script>
-        // --- KEY ENTEGRASYONU ---
         const HELIUS_KEY = "ec1aa17e-f949-4ab9-a2b2-0a16a3af2cb2"; 
         const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`;
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
         let CURRENT_SOL_USD = 110;
 
         const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const container = document.getElementById('canvas-container');
         const popup = document.getElementById('buy-popup');
         const W = 4000, H = 2000, SLOT = 8.94;
@@ -90,28 +90,35 @@
 
         async function connectWallet() {
             const provider = window.solflare || window.solana;
-            if (!provider) return alert("Cüzdan eklentisi bulunamadı!");
+            if (!provider) return alert("Solana wallet extension required!");
             try {
                 const resp = await provider.connect();
                 walletAddress = (resp.publicKey || provider.publicKey).toString();
                 activeProvider = provider;
-                document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,6);
+                document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,8);
                 document.getElementById('wallet-status').style.color = "#00ff00";
                 document.getElementById('connectBtn').style.display = "none";
             } catch (err) { console.error(err); }
         }
 
+        // DENİZ KONTROLÜ (Siyah pikseller satın alınamaz)
+        function checkMaritime(x, y) {
+            const pixel = ctx.getImageData(x, y, 1, 1).data;
+            // RGB değerleri 15'ten düşükse siyah (deniz) kabul edilir
+            return (pixel[0] < 20 && pixel[1] < 20 && pixel[2] < 20);
+        }
+
         async function handlePurchase(type) {
-            if (!walletAddress) return alert("Cüzdanı bağla!");
+            if (!walletAddress) return alert("First connect your wallet!");
             const price = (type === 100) ? 100 : (gridPrices[selectedKey] || 1.00);
             const lamports = Math.floor((price / CURRENT_SOL_USD) * solanaWeb3.LAMPORTS_PER_SOL);
 
             try {
-                // Helius tüneli üzerinden bağlanıyoruz
                 const connection = new solanaWeb3.Connection(HELIUS_RPC, 'confirmed');
                 const { blockhash } = await connection.getLatestBlockhash('finalized');
                 
                 const tx = new solanaWeb3.Transaction().add(
+                    solanaWeb3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 1000 }),
                     solanaWeb3.SystemProgram.transfer({
                         fromPubkey: new solanaWeb3.PublicKey(walletAddress),
                         toPubkey: new solanaWeb3.PublicKey(MASTER_WALLET),
@@ -122,7 +129,7 @@
                 tx.feePayer = new solanaWeb3.PublicKey(walletAddress);
 
                 const { signature } = await activeProvider.signAndSendTransaction(tx);
-                alert("FETİH BAŞARILI! İmza: " + signature.slice(0,8));
+                alert("CONQUEST CONFIRMED! TX: " + signature.slice(0,10));
                 
                 if(type !== 100) {
                     gridData[selectedKey] = document.getElementById('nationSelect').value;
@@ -133,24 +140,34 @@
                 }
                 closePopup();
             } catch (err) {
-                alert("İşlem reddedildi veya ağda sorun var. Lütfen tekrar deneyin.");
+                alert("Transaction Failed. Check your balance or network connection.");
                 console.error(err);
             }
         }
 
         function closePopup() { popup.style.display = 'none'; }
 
-        // MOUSE & HOVER
+        // MOUSE LOGIC + HOVER INTEL
         canvas.addEventListener('mousemove', e => {
             const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left) / (rect.width / W);
-            const y = (e.clientY - rect.top) / (rect.height / H);
+            const x = (e.clientX - rect.left) / (rect.width / W) * W;
+            const y = (e.clientY - rect.top) / (rect.height / H) * H;
+            
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
+            const isOcean = checkMaritime(x, y);
 
-            document.getElementById('intel-coords').innerText = `COORD: ${key}`;
-            document.getElementById('intel-owner').innerText = gridData[key] ? `OWNER: ${gridData[key].toUpperCase()}` : "OWNER: UNCLAIMED";
-            document.getElementById('intel-price').innerText = `PRICE: ${(gridPrices[key] || 1.00).toFixed(2)} USD`;
+            document.getElementById('intel-coords').innerText = `COORD: ${col}, ${row}`;
+            const statusEl = document.getElementById('intel-status');
+            
+            if (isOcean) {
+                statusEl.innerText = "STATUS: INTERNATIONAL WATERS";
+                statusEl.style.color = "#5555ff";
+            } else {
+                statusEl.innerText = gridData[key] ? `OWNER: ${gridData[key].toUpperCase()}` : "STATUS: UNCLAIMED";
+                statusEl.style.color = gridData[key] ? "#ff4500" : "#00ff00";
+            }
+            document.getElementById('intel-price').innerText = `VALUATION: ${(gridPrices[key] || 1.00).toFixed(2)} USD`;
 
             if (isDragging) {
                 moved = true;
@@ -167,8 +184,14 @@
             isDragging = false;
             if (!moved) {
                 const rect = canvas.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / (rect.width / W);
-                const y = (e.clientY - rect.top) / (rect.height / H);
+                const x = (e.clientX - rect.left) / (rect.width / W) * W;
+                const y = (e.clientY - rect.top) / (rect.height / H) * H;
+
+                if (checkMaritime(x, y)) {
+                    alert("MARITIME LAW: No conquest allowed in international waters!");
+                    return;
+                }
+
                 selectedKey = `${Math.floor(x / SLOT)},${Math.floor(y / SLOT)}`;
                 popup.style.left = `${e.clientX + 5}px`;
                 popup.style.top = `${e.clientY + 5}px`;
@@ -177,6 +200,7 @@
             }
         });
 
+        // VIEWPORT CONTROL
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
         function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
         window.addEventListener('wheel', e => {
