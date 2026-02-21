@@ -13,98 +13,95 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            height: 100vh;
+            min-height: 100vh;
             margin: 0;
             text-align: center;
             background-image: url('https://www.transparenttextures.com/patterns/old-map.png');
-            overflow: hidden;
         }
-        h1 {
-            font-size: 3.5rem;
-            letter-spacing: 8px;
-            text-transform: uppercase;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #d4af37;
-            padding-bottom: 10px;
-        }
-        p {
-            font-size: 1.4rem;
-            max-width: 850px;
-            line-height: 1.6;
-            color: #f0e68c;
-            font-style: italic;
-        }
+        h1 { font-size: 3rem; letter-spacing: 5px; text-transform: uppercase; margin: 20px 0; border-bottom: 2px solid #d4af37; }
+        p { font-size: 1.2rem; max-width: 800px; color: #f0e68c; font-style: italic; }
+        
+        /* CTA BUTTON */
         .cta-button {
-            margin-top: 30px;
-            padding: 15px 45px;
-            background-color: #d4af37;
-            color: #1a1a1a;
-            font-weight: bold;
-            text-transform: uppercase;
-            border: none;
-            cursor: pointer;
-            font-size: 1.3rem;
-            transition: 0.3s;
-            box-shadow: 0px 0px 15px rgba(212, 175, 55, 0.5);
+            padding: 15px 40px; background-color: #d4af37; color: #1a1a1a;
+            font-weight: bold; text-transform: uppercase; border: none;
+            cursor: pointer; font-size: 1.2rem; transition: 0.3s;
+            box-shadow: 0px 0px 15px rgba(212, 175, 55, 0.5); margin: 20px;
         }
-        .cta-button:hover {
-            background-color: #f0e68c;
-            transform: scale(1.05);
-            box-shadow: 0px 0px 25px rgba(212, 175, 55, 0.8);
+        .cta-button:hover { background-color: #f0e68c; transform: scale(1.05); }
+
+        #countdown { font-size: 2.5rem; color: #ff4500; font-weight: bold; margin-bottom: 20px; }
+
+        /* WAR ROOM (MAP) SECTION */
+        #war-room {
+            display: none; /* Cüzdan bağlanana kadar gizli */
+            flex-direction: column;
+            align-items: center;
+            width: 95vw;
         }
-        #countdown {
-            margin-top: 40px;
-            font-size: 3.5rem;
-            color: #ff4500;
-            font-weight: bold;
-            text-shadow: 3px 3px #000;
+        #map-container {
+            position: relative;
+            border: 3px solid #d4af37;
+            background-color: #000;
+            cursor: crosshair;
+            overflow: hidden;
+            margin-bottom: 20px;
         }
-        .footer {
-            margin-top: 60px;
-            font-size: 0.9rem;
-            color: #666;
-            letter-spacing: 2px;
+        canvas {
+            background-image: url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg');
+            background-size: contain;
+            background-repeat: no-repeat;
+            background-position: center;
+            image-rendering: pixelated;
         }
-        /* SEÇİM PENCERESİ */
+        .controls { display: flex; gap: 10px; margin-bottom: 20px; }
+        .color-picker {
+            width: 35px; height: 35px; border: 2px solid #fff; cursor: pointer;
+        }
+
+        /* MODAL */
         .modal {
-            display: none;
-            position: fixed;
-            z-index: 1000;
+            display: none; position: fixed; z-index: 1000;
             left: 0; top: 0; width: 100%; height: 100%;
             background-color: rgba(0, 0, 0, 0.95);
         }
         .modal-content {
-            background-color: #1a1a1a;
-            margin: 15% auto;
-            padding: 40px;
-            border: 2px solid #d4af37;
-            width: 320px;
-            border-radius: 8px;
-            box-shadow: 0px 0px 50px rgba(212, 175, 55, 0.2);
+            background-color: #1a1a1a; margin: 15% auto; padding: 40px;
+            border: 2px solid #d4af37; width: 300px; text-align: center;
         }
         .wallet-option {
-            display: block;
-            width: 100%;
-            padding: 15px;
-            margin: 15px 0;
-            background: #222;
-            color: #d4af37;
-            border: 1px solid #d4af37;
-            cursor: pointer;
-            font-weight: bold;
-            font-family: 'Courier New', Courier, monospace;
-            text-transform: uppercase;
+            display: block; width: 100%; padding: 15px; margin: 10px 0;
+            background: #222; color: #d4af37; border: 1px solid #d4af37;
+            cursor: pointer; font-weight: bold; text-transform: uppercase;
         }
         .wallet-option:hover { background: #d4af37; color: #1a1a1a; }
+        
+        .footer { margin-top: 30px; font-size: 0.8rem; color: #666; padding-bottom: 20px; }
     </style>
 </head>
 <body>
 
-    <h1>THE LAST BORDER</h1>
-    <p>"Your borders were drawn by others. Are you strong enough to erase them?"</p>
-    
-    <button id="walletButton" class="cta-button" onclick="openModal()">JOIN THE ARMY (CONNECT WALLET)</button>
-    <div id="countdown">LOADING...</div>
+    <div id="intro-screen">
+        <h1>THE LAST BORDER</h1>
+        <p>"History is written by the victors. Today, you hold the pen."</p>
+        <div id="countdown">LOADING...</div>
+        <button id="walletButton" class="cta-button" onclick="openModal()">JOIN THE ARMY (CONNECT WALLET)</button>
+    </div>
+
+    <div id="war-room">
+        <h2 style="color: #ff4500;">BATTLEFIELD ACTIVE</h2>
+        <div class="controls">
+            <div class="color-picker" style="background: #ff0000;" onclick="setColor('#ff0000')"></div>
+            <div class="color-picker" style="background: #ffffff;" onclick="setColor('#ffffff')"></div>
+            <div class="color-picker" style="background: #0000ff;" onclick="setColor('#0000ff')"></div>
+            <div class="color-picker" style="background: #00ff00;" onclick="setColor('#00ff00')"></div>
+            <div class="color-picker" style="background: #ffff00;" onclick="setColor('#ffff00')"></div>
+        </div>
+        <div id="map-container">
+            <canvas id="war-canvas"></canvas>
+        </div>
+        <p style="font-size: 0.9rem;">CLICK TO DEPLOY PIXELS. PROTECT YOUR BORDERS.</p>
+    </div>
 
     <div id="walletModal" class="modal">
         <div class="modal-content">
@@ -118,7 +115,7 @@
     <div class="footer">DECENTRALIZED CONQUEST PROTOCOL | POWERED BY SOLANA</div>
 
     <script>
-        // SAYAÇ (Dokunulmadı)
+        // --- SAYAÇ ---
         const launchDate = new Date("Feb 24, 2026 12:00:00").getTime();
         function updateCountdown() {
             const now = new Date().getTime();
@@ -129,43 +126,56 @@
             const s = Math.floor((distance % (1000 * 60)) / 1000);
             document.getElementById("countdown").innerHTML = (h < 10 ? "0"+h : h) + ":" + (m < 10 ? "0"+m : m) + ":" + (s < 10 ? "0"+s : s);
         }
-        setInterval(updateCountdown, 1000); updateCountdown();
+        setInterval(updateCountdown, 1000);
+        updateCountdown();
 
+        // --- CÜZDAN & MODAL ---
         function openModal() { document.getElementById('walletModal').style.display = "block"; }
         function closeModal() { document.getElementById('walletModal').style.display = "none"; }
 
-        // CÜZDAN BAĞLAMA (Yeni Nesil - Hata Payı Sıfır Modu)
         async function connect(type) {
-            let provider = null;
-            
-            if (type === 'phantom') {
-                provider = window?.phantom?.solana || window?.solana;
-            } else if (type === 'solflare') {
-                provider = window?.solflare || window?.solana;
-            }
-
+            let provider = (type === 'phantom') ? (window?.phantom?.solana || window?.solana) : window?.solflare;
             if (!provider) {
-                alert(type.toUpperCase() + " not found. Redirecting to store...");
+                alert(type.toUpperCase() + " not found!");
                 window.open(type === 'phantom' ? "https://phantom.app/" : "https://solflare.com/", "_blank");
                 return;
             }
-
             try {
-                // Bağlantı isteği
                 const resp = await provider.connect();
-                const key = resp.publicKey.toString();
-                
-                // Başarılı olursa butonu güncelle
-                const btn = document.getElementById('walletButton');
-                btn.innerText = key.slice(0,4) + "..." + key.slice(-4);
-                btn.style.backgroundColor = "#4CAF50";
-                btn.style.color = "white";
+                console.log("Connected:", resp.publicKey.toString());
+                document.getElementById('intro-screen').style.display = "none";
+                document.getElementById('war-room').style.display = "flex";
+                initMap();
                 closeModal();
-                console.log("Joined:", key);
-            } catch (err) {
-                console.error("Link error:", err);
-                alert("Connection failed! Open your " + type + " extension and unlock it first.");
-            }
+            } catch (err) { alert("Connection failed. Unlock your wallet."); }
+        }
+
+        // --- HARİTA MOTORU ---
+        let selectedColor = '#ff0000';
+        const canvas = document.getElementById('war-canvas');
+        const ctx = canvas.getContext('2d');
+
+        function initMap() {
+            // Ekran genişliğine göre canvas boyutu
+            const width = Math.min(window.innerWidth * 0.9, 1000);
+            const height = width * 0.6;
+            canvas.width = width;
+            canvas.height = height;
+            
+            canvas.addEventListener('mousedown', function(e) {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                drawPixel(x, y);
+            });
+        }
+
+        function setColor(color) { selectedColor = color; }
+
+        function drawPixel(x, y) {
+            ctx.fillStyle = selectedColor;
+            // 5x5 piksel boyutu
+            ctx.fillRect(Math.floor(x/5)*5, Math.floor(y/5)*5, 5, 5);
         }
     </script>
 </body>
