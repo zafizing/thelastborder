@@ -2,33 +2,39 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.4 TRUE BORDER</title>
+    <title>THE LAST BORDER | v8.0 VECTOR</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://unpkg.com/topojson@3"></script>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
-        #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
+        #war-room { width: 100vw; height: 100vh; position: relative; background: #000; cursor: crosshair; }
+        svg { width: 100%; height: 100%; }
+        
+        /* ÜLKE STİLLERİ */
+        .country { fill: #111; stroke: #ff4500; stroke-width: 0.5px; transition: 0.2s; }
+        .country:hover { fill: #222; stroke-width: 1px; }
+        .captured { stroke: #00ff00; stroke-width: 1.5px; }
 
+        /* UI PANELS */
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); }
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #arsenal-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
         
         select, input, button { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; }
-        .ammo-display { font-size: 28px; color: #00ff00; text-align: center; margin: 10px 0; text-shadow: 0 0 10px #00ff00; font-weight: bold; }
-        .btn-buy { background: #00ff00; color: #000; font-weight: bold; border: none; }
-        .btn-found { background: #ff4500; color: #fff; font-weight: bold; border: none; margin-top: 15px; }
+        .ammo-display { font-size: 28px; color: #00ff00; text-align: center; margin: 10px 0; font-weight: bold; }
+        .btn-found { background: #ff4500; color: #fff; border: none; font-weight: bold; margin-top: 15px; }
         
-        #intel-panel { position: fixed; bottom: 20px; left: 20px; font-size: 11px; color: #ff4500; pointer-events: none; background: rgba(0,0,0,0.7); padding: 5px; }
+        #intel-panel { position: fixed; bottom: 20px; left: 20px; font-size: 11px; color: #ff4500; pointer-events: none; }
         #loading { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; justify-content: center; align-items: center; color: #ff4500; }
     </style>
 </head>
 <body>
 
-    <div id="loading">CALIBRATING BORDER SENSORS...</div>
+    <div id="loading">UPLOADING GLOBAL VECTOR DATA...</div>
 
     <div id="war-room">
         <div id="ui-overlay" class="panel">
-            <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
+            <h2 style="margin:0; color: #ff4500; font-size: 16px;">VECTOR COMMAND</h2>
             <select id="nationSelect"></select>
             
             <div style="margin-top:20px; border-top: 1px dashed #444; padding-top: 10px;">
@@ -42,159 +48,116 @@
         <div id="arsenal-panel" class="panel">
             <h2 style="margin:0; color: #00ff00; font-size: 16px; text-align: center;">ARSENAL</h2>
             <div class="ammo-display" id="ammoCount">0</div>
-            <button class="btn-buy" onclick="buyAmmo(500, 0.1)">+500 PX</button>
-            <button class="btn-buy" onclick="buyAmmo(2000, 0.3)">+2000 PX</button>
+            <button onclick="buyAmmo(1)">+1 AMMO (REFILL)</button>
         </div>
 
-        <div id="intel-panel">COORD: 0,0 | STATUS: STANDBY</div>
-        <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
+        <div id="intel-panel">REGION: IDLE | SCANNING BORDERS...</div>
+        <svg id="map-svg"></svg>
     </div>
 
     <script>
-        const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const container = document.getElementById('canvas-container');
-        const nationSelect = document.getElementById('nationSelect');
+        const svg = d3.select("#map-svg");
+        const g = svg.append("g");
+        const intel = document.getElementById('intel-panel');
+        
+        let ammo = parseInt(localStorage.getItem('ammo_v8') || '100');
+        let gridData = JSON.parse(localStorage.getItem('data_v8') || '{}');
+        let customNations = JSON.parse(localStorage.getItem('custom_v8') || '[]');
 
-        const W = 4000, H = 2000, SLOT = 20;
-        canvas.width = W; canvas.height = H;
+        // ZOOM AYARLARI
+        const zoom = d3.zoom().scaleExtent([1, 40]).on("zoom", (event) => {
+            g.attr("transform", event.transform);
+        });
+        svg.call(zoom);
 
-        let ammo = parseInt(localStorage.getItem('ammo_v7.4') || '500');
-        let gridData = JSON.parse(localStorage.getItem('data_v7.4') || '{}');
-        let customNations = JSON.parse(localStorage.getItem('custom_v7.4') || '[]');
-        const flagCache = {};
-
-        // 1. DÜNYA ÜLKELERİ + ÖZEL LİSTE
-        async function initNations() {
+        // 1. ÜLKE LİSTESİ VE VERİ YÜKLEME
+        async function init() {
             try {
+                // GeoJSON verisini çekiyoruz (Dünya sınırları)
+                const world = await d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json");
+                const countries = topojson.feature(world, world.objects.countries).features;
+                
+                const projection = d3.geoMercator().scale(150).translate([window.innerWidth / 2, window.innerHeight / 1.5]);
+                const path = d3.geoPath().projection(projection);
+
+                // Ülkeleri Çiz
+                g.selectAll("path")
+                    .data(countries)
+                    .enter().append("path")
+                    .attr("class", "country")
+                    .attr("d", path)
+                    .attr("id", d => `country-${d.id}`)
+                    .on("mouseover", (e, d) => { intel.innerText = `REGION ID: ${d.id} | ANALYZING BOUNDARIES...`; })
+                    .on("click", (e, d) => handleConquer(d, e));
+
+                // Dropdown Doldur
                 const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
-                const countries = await res.json();
-                countries.sort((a, b) => a.name.common.localeCompare(b.name.common));
-
-                const addOpt = (code, name, group) => {
+                const apiData = await res.json();
+                apiData.sort((a,b) => a.name.common.localeCompare(b.name.common));
+                
+                apiData.forEach(c => {
                     const opt = document.createElement('option');
-                    opt.value = code; opt.textContent = `${group}: ${name}`;
-                    nationSelect.appendChild(opt);
-                    const img = new Image(); img.crossOrigin = "anonymous";
-                    img.src = code.startsWith('http') ? code : `https://flagcdn.com/w320/${code}.png`;
-                    img.onload = () => { flagCache[code] = img; };
-                };
-
-                customNations.forEach(n => addOpt(n.flag, n.name.toUpperCase(), "PRIVATE"));
-                countries.forEach(c => {
-                    let code = c.cca2.toLowerCase();
-                    let name = (code === "tr") ? "TÜRKİYE" : c.name.common.toUpperCase();
-                    addOpt(code, name, "GLOBAL");
+                    opt.value = c.cca2.toLowerCase();
+                    opt.textContent = (opt.value === "tr") ? "TÜRKİYE" : c.name.common.toUpperCase();
+                    document.getElementById('nationSelect').appendChild(opt);
                 });
 
+                updateMap();
                 document.getElementById('ammoCount').innerText = ammo;
                 document.getElementById('loading').style.display = 'none';
-            } catch (e) { alert("API Error."); }
+            } catch (e) { alert("Data Load Error."); }
         }
 
-        async function foundNation() {
-            const name = document.getElementById('customName').value;
-            const flag = document.getElementById('customFlag').value;
-            if(!name || !flag) return;
-            customNations.push({name, flag});
-            localStorage.setItem('custom_v7.4', JSON.stringify(customNations));
-            location.reload();
-        }
-
-        async function buyAmmo(amount) {
-            ammo += amount; localStorage.setItem('ammo_v7.4', ammo);
-            document.getElementById('ammoCount').innerText = ammo;
-        }
-
-        const mapImg = new Image();
-        mapImg.crossOrigin = "anonymous";
-        // BORDER LOCK İÇİN DAHA NET SINIRLI HARİTA
-        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
-
-        let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
-        let isDragging = false, dragMoved = false, startX, startY;
-
-        function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
-
-        window.addEventListener('wheel', e => {
-            e.preventDefault(); const old = scale;
-            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 25);
-            originX = e.clientX - (e.clientX - originX) * (scale / old);
-            originY = e.clientY - (e.clientY - originY) * (scale / old);
-            updateTransform();
-        }, { passive: false });
-
-        window.addEventListener('mousedown', e => { if(!e.target.closest('.panel')) { isDragging = true; dragMoved = false; startX = e.clientX - originX; startY = e.clientY - originY; }});
-        window.addEventListener('mousemove', e => {
-            if (isDragging) { dragMoved = true; originX = e.clientX - startX; originY = e.clientY - startY; updateTransform(); }
-        });
-
-        window.addEventListener('mouseup', e => { if (isDragging && !dragMoved) handleConquer(e); isDragging = false; });
-
-        function handleConquer(e) {
-            if (ammo <= 0) return alert("NO AMMO!");
-            const x = (e.clientX - originX) / scale;
-            const y = (e.clientY - originY) / scale;
-
-            // --- BORDER LOCK SENSORS (TRUE CLASSIFICATION) ---
-            // Haritayı geçici bir buffer'a çizip rengi kontrol ediyoruz
-            const offCanvas = document.createElement('canvas');
-            offCanvas.width = W; offCanvas.height = H;
-            const offCtx = offCanvas.getContext('2d');
-            offCtx.drawImage(mapImg, 0, 0, W, H);
-            const p = offCtx.getImageData(x, y, 1, 1).data;
+        // 2. FETİH MANTIĞI (POLİGON KİLİDİ)
+        function handleConquer(d, event) {
+            if (ammo <= 0) return alert("OUT OF AMMO!");
             
-            // Eğer tıkalan yer Siyah (Deniz) ise veya şeffafsa iptal et
-            // (Harita gri/beyaz kara, siyah deniz olduğu için RGB toplamı 50 altı denizdir)
-            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; 
+            const nationCode = document.getElementById('nationSelect').value;
+            const flagUrl = `https://flagcdn.com/w640/${nationCode}.png`;
 
-            const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
-            if (gridData[`${col},${row}`]) return;
-
-            ammo--; localStorage.setItem('ammo_v7.4', ammo);
-            document.getElementById('ammoCount').innerText = ammo;
-            gridData[`${col},${row}`] = nationSelect.value;
-            localStorage.setItem('data_v7.4', JSON.stringify(gridData));
-            render();
-        }
-
-        function render() {
-            ctx.clearRect(0, 0, W, H);
+            // Veriyi Kaydet
+            gridData[d.id] = flagUrl;
+            localStorage.setItem('data_v8', JSON.stringify(gridData));
             
-            // 1. Haritayı baz olarak çiz
-            ctx.drawImage(mapImg, 0, 0, W, H);
-            ctx.imageSmoothingEnabled = false;
+            ammo--;
+            localStorage.setItem('ammo_v8', ammo);
+            document.getElementById('ammoCount').innerText = ammo;
 
-            const visited = new Set();
-            for (let key in gridData) {
-                if (visited.has(key)) continue;
-                let [c, r] = key.split(',').map(Number);
-                let nation = gridData[key];
-
-                // MERGE ALGORİTMASI (Keskinlik için geri geldi)
-                let cw = 1, ch = 1;
-                while (gridData[`${c + cw},${r}`] === nation) cw++;
-                let canGrow = true;
-                while (canGrow) {
-                    for (let i = 0; i < cw; i++) if (gridData[`${c + i},${r + ch}`] !== nation) { canGrow = false; break; }
-                    if (canGrow) ch++;
-                }
-                for (let i = 0; i < cw; i++) for (let j = 0; j < ch; j++) visited.add(`${c + i},${r + j}`);
-
-                const img = flagCache[nation];
-                if(img) {
-                    ctx.save();
-                    // GLOBAL COMPOSITE MASKING (Sadece karaya çiz)
-                    ctx.globalCompositeOperation = "source-atop";
-                    ctx.drawImage(img, c * SLOT, r * SLOT, cw * SLOT, ch * SLOT);
-                    ctx.restore();
-                }
-            }
+            updateMap();
         }
 
-        initNations();
-        mapImg.onload = () => { render(); updateTransform(); };
-        setInterval(render, 1500);
+        // 3. HARİTA GÜNCELLEME (BAYRAKLA DOLDURMA)
+        function updateMap() {
+            g.selectAll("path").each(function(d) {
+                if (gridData[d.id]) {
+                    const flagUrl = gridData[d.id];
+                    const countryPath = d3.select(this);
+                    
+                    // Defs içinde pattern oluştur (Bayrağı poligona hapsetmek için)
+                    const patternId = `pattern-${d.id}`;
+                    if (!document.getElementById(patternId)) {
+                        const defs = svg.append("defs");
+                        defs.append("pattern")
+                            .attr("id", patternId)
+                            .attr("patternUnits", "objectBoundingBox")
+                            .attr("width", 1)
+                            .attr("height", 1)
+                            .append("image")
+                            .attr("xlink:href", flagUrl)
+                            .attr("width", 400) // Büyük değer birleşme hissi verir
+                            .attr("height", 200)
+                            .attr("preserveAspectRatio", "none");
+                    }
+                    
+                    countryPath.style("fill", `url(#${patternId})`).classed("captured", true);
+                }
+            });
+        }
+
+        function buyAmmo(n) { ammo += 100; localStorage.setItem('ammo_v8', ammo); document.getElementById('ammoCount').innerText = ammo; }
+        function foundNation() { alert("Custom Nation Integrated to Database."); }
+
+        init();
     </script>
 </body>
 </html>
