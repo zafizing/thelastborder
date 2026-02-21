@@ -2,19 +2,15 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.4.9 100K SHARP</title>
+    <title>THE LAST BORDER | v7.5.0 STEEL LOGIC</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
         
-        /* KRİTİK: CSS seviyesinde piksel netliği */
         canvas { 
             background-color: #0d0d0d; 
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-optimize-contrast;
             image-rendering: pixelated;
-            image-rendering: optimizeSpeed;
             cursor: crosshair; 
         }
 
@@ -25,13 +21,13 @@
         button { width: 100%; padding: 10px; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; font-weight: bold; border: none; }
         .ammo-display { font-size: 28px; color: #00ff00; text-align: center; margin: 10px 0; font-weight: bold; }
         .btn-buy { background: #00ff00; color: #000; }
-        .btn-found { background: #ff4500; color: #fff; margin-top: 15px; }
+        
         #intel-panel { position: fixed; bottom: 20px; left: 20px; font-size: 11px; color: #ff4500; pointer-events: none; background: rgba(0,0,0,0.7); padding: 5px; }
         #loading { position: fixed; inset: 0; background: #000; z-index: 1000; display: flex; justify-content: center; align-items: center; color: #ff4500; }
     </style>
 </head>
 <body>
-    <div id="loading">CALIBRATING 100,000 SHARP SLOTS...</div>
+    <div id="loading">STABILIZING 100,000 SLOTS...</div>
     <div id="war-room">
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
@@ -39,7 +35,7 @@
             <div style="margin-top:20px; border-top: 1px dashed #444; padding-top: 10px;">
                 <input type="text" id="customName" placeholder="NATION NAME">
                 <input type="text" id="customFlag" placeholder="FLAG URL">
-                <button class="btn-found" onclick="foundNation()">ESTABLISH STATE</button>
+                <button style="background: #ff4500; color: #fff;" onclick="foundNation()">ESTABLISH STATE</button>
             </div>
         </div>
         <div id="arsenal-panel" class="panel">
@@ -52,19 +48,16 @@
     </div>
 
     <script>
-        // Resetleme işlemi v7.4.8'de yapıldığı için burayı temiz tutuyoruz
         const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true, alpha: false });
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
 
-        // 100.000 SLOT KALİBRASYONU (W*H / 100,000 = 80 -> sqrt(80) = 8.94)
         const W = 4000, H = 2000, SLOT = 8.94; 
         canvas.width = W; canvas.height = H;
 
         let ammo = parseInt(localStorage.getItem('ammo_v7.4_final') || '1000');
         let gridData = JSON.parse(localStorage.getItem('data_v7.4_final') || '{}');
-        let customNations = [];
         const flagCache = {};
 
         const hitCanvas = document.createElement('canvas');
@@ -76,19 +69,22 @@
                 const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
                 const countries = await res.json();
                 countries.sort((a, b) => a.name.common.localeCompare(b.name.common));
-                const addOpt = (code, name, group) => {
+                
+                const addOpt = (code, name) => {
                     const opt = document.createElement('option');
-                    opt.value = code; opt.textContent = `${group}: ${name}`;
+                    opt.value = code; opt.textContent = name;
                     nationSelect.appendChild(opt);
                     const img = new Image(); img.crossOrigin = "anonymous";
                     img.src = code.startsWith('http') ? code : `https://flagcdn.com/w320/${code}.png`;
                     img.onload = () => { flagCache[code] = img; render(); };
                 };
+
                 countries.forEach(c => {
                     let code = c.cca2.toLowerCase();
                     let name = (code === "tr") ? "TÜRKİYE" : c.name.common.toUpperCase();
-                    addOpt(code, name, "GLOBAL");
+                    addOpt(code, name);
                 });
+                
                 document.getElementById('ammoCount').innerText = ammo;
                 document.getElementById('loading').style.display = 'none';
             } catch (e) {}
@@ -124,12 +120,12 @@
             
             if (x < 0 || y < 0 || x > W || y > H) return;
 
-            const p = hitCtx.getImageData(x, y, 1, 1).data;
-            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return;
+            // SINIR KONTROLÜ (KESİN ÇÖZÜM)
+            const p = hitCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+            if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; // Siyah/Koyu gri (deniz) ise çık
 
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
-
             if (gridData[key] === nationSelect.value) return;
 
             ammo--;
@@ -140,32 +136,45 @@
         }
 
         function render() {
-            // KRİTİK: JS seviyesinde netlik ayarları
             ctx.imageSmoothingEnabled = false;
-            ctx.mozImageSmoothingEnabled = false;
-            ctx.webkitImageSmoothingEnabled = false;
-            ctx.msImageSmoothingEnabled = false;
-
             ctx.clearRect(0, 0, W, H);
-            ctx.drawImage(mapImg, 0, 0, W, H);
+            
+            // Önce tüm bayrakları çiz
             for (let key in gridData) {
                 let [c, r] = key.split(',').map(Number);
-                let nation = gridData[key];
-                const img = flagCache[nation];
+                const img = flagCache[gridData[key]];
                 if(img) {
-                    ctx.save();
-                    ctx.globalCompositeOperation = "source-atop";
-                    // Piksel pikselline hizalama (Sub-pixel rendering engellendi)
                     ctx.drawImage(img, Math.floor(c * SLOT), Math.floor(r * SLOT), Math.ceil(SLOT), Math.ceil(SLOT));
-                    ctx.restore();
                 }
             }
+            
+            // Sonra harita sınırlarını bayrakların üzerine "maske" olarak bindir
+            ctx.save();
+            ctx.globalCompositeOperation = "destination-in";
+            ctx.drawImage(mapImg, 0, 0, W, H);
+            ctx.restore();
+            
+            // En alta denizi tekrar ekle (Görsel bütünlük için)
+            ctx.save();
+            ctx.globalCompositeOperation = "destination-over";
+            ctx.drawImage(mapImg, 0, 0, W, H);
+            ctx.restore();
         }
 
         function buyAmmo(n) { ammo += n; document.getElementById('ammoCount').innerText = ammo; }
-        
+        function foundNation() {
+            const n = document.getElementById('customName').value, f = document.getElementById('customFlag').value;
+            if(!n || !f) return;
+            const opt = document.createElement('option');
+            opt.value = f; opt.textContent = n.toUpperCase();
+            nationSelect.insertBefore(opt, nationSelect.firstChild);
+            nationSelect.value = f;
+            const img = new Image(); img.crossOrigin = "anonymous";
+            img.src = f; img.onload = () => { flagCache[f] = img; render(); };
+        }
+
         initNations();
-        setInterval(render, 4000); // 100K veri için render aralığını biraz artırdım
+        setInterval(render, 5000);
     </script>
 </body>
 </html>
