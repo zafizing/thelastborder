@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v8.5.0 GLOBAL</title>
+    <title>THE LAST BORDER | v8.5.2 STABLE</title>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
@@ -22,7 +22,7 @@
     </style>
 </head>
 <body>
-    <div id="loading">SYNCING WITH GLOBAL DATABASE...</div>
+    <div id="loading">INITIALIZING GLOBAL WAR MAP...</div>
     
     <div id="war-room">
         <div id="buy-popup">
@@ -55,11 +55,10 @@
     </div>
 
     <script>
-        // --- CONFIG ---
+        // --- CONFIG (SENİN GÜNCEL BİLGİLERİN) ---
         const SB_URL = "https://vwehxkrcsxvgsonhlpms.supabase.co";
         const SB_KEY = "sb_publishable_Xu7IJwTu2SlVVL8gqi0HEQ_iZu4Xtxk";
-        const supabase = typeof supabase !== 'undefined' ? supabase : window.supabase.createClient(SB_URL, SB_KEY);
-        
+        const supabase = window.supabase.createClient(SB_URL, SB_KEY);
         const HELIUS_RPC = "https://mainnet.helius-rpc.com/?api-key=ec1aa17e-f949-4ab9-a2b2-0a16a3af2cb2";
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
         let SOL_PRICE = 135;
@@ -73,40 +72,40 @@
         let globalTerritory = {}; 
         const flagCache = {};
         let walletAddress = null, activeProvider = null, selectedKey = null;
-        let mapLoaded = false, dbLoaded = false;
+        let mapLoaded = false;
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
         let startX, startY, isDragging = false, moved = false;
 
-        // --- DB CORE ---
+        // --- DB CORE (ANTI-LOCK FIX) ---
         async function syncFromDB() {
-            const { data, error } = await supabase.from('territory').select('*');
-            if (error) console.error("DB Sync Error:", error);
-            else {
-                globalTerritory = {};
-                data.forEach(item => {
-                    globalTerritory[item.pixel_key] = item;
-                });
-                dbLoaded = true;
-                checkReady();
-                render();
+            try {
+                const { data, error } = await supabase.from('territory').select('*');
+                if (error) throw error;
+                if (data) {
+                    globalTerritory = {};
+                    data.forEach(item => { globalTerritory[item.pixel_key] = item; });
+                    render();
+                }
+            } catch (e) {
+                console.error("DB Sync Error (Sessiz):", e.message);
+            } finally {
+                // DB Hata verse bile haritayı her zaman aç
+                document.getElementById('loading').style.display = 'none';
             }
         }
 
         async function saveToDB(key, address, nation, price) {
             const { error } = await supabase.from('territory').upsert({
-                pixel_key: key,
-                owner_address: address,
-                nation_code: nation,
-                price: price * 1.25
+                pixel_key: key, owner_address: address, nation_code: nation, price: price * 1.25
             });
-            if (error) alert("DB Save Failed: " + error.message);
-            else syncFromDB();
+            if (error) console.error("DB Save Fail:", error.message);
+            syncFromDB();
         }
 
-        // --- WALLET & TRANS ---
+        // --- WALLET ---
         async function connectWallet() {
             const provider = window.solflare || window.solana;
-            if (!provider) return alert("Install Phantom/Solflare!");
+            if (!provider) return alert("Install Wallet!");
             const resp = await provider.connect();
             walletAddress = (resp.publicKey || provider.publicKey).toString();
             activeProvider = provider;
@@ -116,10 +115,7 @@
         }
 
         async function handlePurchase() {
-            if (!walletAddress) return alert("Connect wallet first!");
-            const btn = document.getElementById('execBtn');
-            btn.disabled = true; btn.innerText = "TRANSMITTING...";
-
+            if (!walletAddress) return alert("Connect wallet!");
             const currentData = globalTerritory[selectedKey];
             const priceUSD = currentData ? currentData.price : 1.00;
             const lamports = Math.floor((priceUSD / SOL_PRICE) * 1000000000);
@@ -128,24 +124,17 @@
                 const conn = new solanaWeb3.Connection(HELIUS_RPC);
                 const { blockhash } = await conn.getLatestBlockhash();
                 const tx = new solanaWeb3.Transaction().add(
-                    solanaWeb3.SystemProgram.transfer({
-                        fromPubkey: new solanaWeb3.PublicKey(walletAddress),
-                        toPubkey: new solanaWeb3.PublicKey(MASTER_WALLET),
-                        lamports: lamports
-                    })
+                    solanaWeb3.SystemProgram.transfer({ fromPubkey: new solanaWeb3.PublicKey(walletAddress), toPubkey: new solanaWeb3.PublicKey(MASTER_WALLET), lamports: lamports })
                 );
                 tx.recentBlockhash = blockhash;
                 tx.feePayer = new solanaWeb3.PublicKey(walletAddress);
-                const signed = await activeProvider.signAndSendTransaction(tx);
-                
-                // On-chain onay bekleniyor simülasyonu (DB yazımı)
+                await activeProvider.signAndSendTransaction(tx);
                 await saveToDB(selectedKey, walletAddress, document.getElementById('nationSelect').value, priceUSD);
                 closePopup();
-            } catch (e) { alert("Transaction failed or cancelled."); }
-            btn.disabled = false; btn.innerText = "EXECUTE COMMAND";
+            } catch (e) { alert("Transaction failed."); }
         }
 
-        // --- RENDER & LOGIC ---
+        // --- LOGIC ---
         function checkMaritime(x, y) {
             if (!mapLoaded) return false;
             const p = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
@@ -159,17 +148,18 @@
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
             
+            const isOcean = checkMaritime(x, y);
             document.getElementById('intel-coords').innerText = `COORD: ${col}, ${row}`;
             const s = document.getElementById('intel-status');
             const p = document.getElementById('intel-price');
 
-            if (checkMaritime(x, y)) {
+            if (isOcean) {
                 s.innerText = "STATUS: INTERNATIONAL WATERS"; s.style.color = "#5555ff";
                 p.innerText = "VALUATION: N/A";
                 return { ocean: true };
             } else {
                 const data = globalTerritory[key];
-                s.innerText = data ? `OWNER: ${data.owner_address.slice(0,12)}...` : "STATUS: UNCLAIMED";
+                s.innerText = data ? `OWNER: ${data.owner_address.slice(0,10)}...` : "STATUS: UNCLAIMED";
                 s.style.color = data ? "#ff4500" : "#00ff00";
                 p.innerText = `VALUATION: ${(data ? data.price : 1.00).toFixed(2)} USD`;
                 return { ocean: false, key: key, price: (data ? data.price : 1.00) };
@@ -186,14 +176,13 @@
             }
         }
 
-        // --- LISTENERS ---
+        // --- INTERACTION ---
         canvas.addEventListener('mousemove', e => {
             updateIntel(e);
             if (isDragging) {
-                moved = true;
                 originX += e.clientX - startX; originY += e.clientY - startY;
                 startX = e.clientX; startY = e.clientY;
-                updateTransform();
+                moved = true; updateTransform();
             }
         });
         canvas.addEventListener('mousedown', e => { isDragging = true; moved = false; startX = e.clientX; startY = e.clientY; closePopup(); });
@@ -208,7 +197,6 @@
                 popup.style.display = "block";
             }
         });
-
         window.addEventListener('wheel', e => {
             const old = scale;
             scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 30);
@@ -219,11 +207,10 @@
 
         function updateTransform() { document.getElementById('canvas-container').style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
         function closePopup() { popup.style.display = 'none'; }
-        function checkReady() { if(mapLoaded && dbLoaded) document.getElementById('loading').style.display = 'none'; }
 
         const mapImg = new Image(); mapImg.crossOrigin = "anonymous";
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
-        mapImg.onload = () => { mapLoaded = true; checkReady(); render(); updateTransform(); };
+        mapImg.onload = () => { mapLoaded = true; render(); updateTransform(); syncFromDB(); };
 
         async function init() {
             const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
@@ -236,11 +223,7 @@
                 img.src = `https://flagcdn.com/w80/${opt.value}.png`;
                 img.onload = () => { flagCache[opt.value] = img; render(); };
             });
-            syncFromDB();
-            setInterval(syncFromDB, 30000); // 30 saniyede bir global veriyi tazele
-            const pRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-            const pData = await pRes.json();
-            SOL_PRICE = pData.solana.usd;
+            setInterval(syncFromDB, 15000); // 15 saniyede bir güncelle
         }
         init();
     </script>
