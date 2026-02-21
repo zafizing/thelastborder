@@ -71,7 +71,7 @@
     <h1>THE LAST BORDER</h1>
     <p>"Your borders were drawn by others. Are you strong enough to erase them?"</p>
     
-    <button class="cta-button">JOIN THE ARMY (COMING SOON)</button>
+    <button class="cta-button" onclick="alert('The recruitment begins soon. Prepare your wallet.')">JOIN THE ARMY (COMING SOON)</button>
 
     <div id="countdown">72:00:00</div>
 
@@ -80,28 +80,26 @@
     </div>
 
     <script>
-        let hours = 72, minutes = 0, seconds = 0;
+        // Hedef süre: 72 saat (259200 saniye)
+        let totalSeconds = 72 * 3600;
 
         function updateCountdown() {
-            if (seconds > 0) {
-                seconds--;
-            } else if (minutes > 0) {
-                minutes--;
-                seconds = 59;
-            } else if (hours > 0) {
-                hours--;
-                minutes = 59;
-                seconds = 59;
+            if (totalSeconds > 0) {
+                totalSeconds--;
             }
 
-            let h = hours < 10 ? "0" + hours : hours;
-            let m = minutes < 10 ? "0" + minutes : minutes;
-            let s = seconds < 10 ? "0" + seconds : seconds;
+            let h = Math.floor(totalSeconds / 3600);
+            let m = Math.floor((totalSeconds % 3600) / 60);
+            let s = totalSeconds % 60;
 
-            document.getElementById("countdown").innerHTML = h + ":" + m + ":" + s;
+            document.getElementById("countdown").innerHTML = 
+                (h < 10 ? "0" + h : h) + ":" + 
+                (m < 10 ? "0" + m : m) + ":" + 
+                (s < 10 ? "0" + s : s);
         }
 
-            setInterval(updateCountdown, 1000);
+        setInterval(updateCountdown, 1000);
+        updateCountdown(); // İlk açılışta çalıştır
     </script>
 </body>
 </html>
