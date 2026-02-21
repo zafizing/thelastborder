@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.7.1 MULTI-WALLET</title>
+    <title>THE LAST BORDER | v7.7.3 WALLET FIXED</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
@@ -28,7 +28,7 @@
     </style>
 </head>
 <body>
-    <div id="loading">DETECTING WALLETS...</div>
+    <div id="loading">INITIALIZING COMMAND CENTER...</div>
     <div id="war-room">
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 16px;">SUPREME COMMAND</h2>
@@ -43,15 +43,15 @@
         <div id="wallet-panel" class="panel">
             <h2 style="margin:0; color: #00ff00; font-size: 16px; text-align: center;">FINANCIAL HUB</h2>
             <div id="wallet-status" style="font-size: 10px; text-align: center; margin: 10px 0; color: #ff4500; font-weight: bold;">WALLET DISCONNECTED</div>
-            <button id="connectBtn" style="background: #00ff00; color: #000;" onclick="autoConnect()">CONNECT WALLET</button>
-            <div id="wallet-type" style="font-size: 8px; color: #555; text-align: center;">Solflare / Phantom Supported</div>
+            <button id="connectBtn" style="background: #00ff00; color: #000;" onclick="connectWallet()">CONNECT WALLET</button>
+            <div id="wallet-type" style="font-size: 8px; color: #555; text-align: center; margin-top: 5px;">Solflare / Phantom Detect</div>
         </div>
 
         <div id="pixel-intel" class="panel">
             <div id="intel-main-content">
                 <div><span class="intel-label">TERRITORY:</span> <span id="intel-name">NONE</span></div>
                 <div><span class="intel-label">PRICE:</span> <span id="intel-price">1.00 USD</span></div>
-                <button id="buyBtn" style="background: #ff4500; color: #fff; margin-top: 10px;">CONQUER NOW</button>
+                <button id="buyBtn" style="background: #ff4500; color: #fff; margin-top: 10px;">CONQUER PIXEL</button>
                 <div style="font-size: 10px; color: #444; margin-top: 5px; text-align:center;">COORDS: <span id="intel-coords">0,0</span></div>
             </div>
             <div id="intel-sea-content" style="display:none; color: #5bc0de; text-align: center; font-weight: bold;">
@@ -125,31 +125,41 @@
             ctx.restore();
         }
 
-        async function autoConnect() {
-            // Solflare check
-            if (window.solflare && window.solflare.isSolflare) {
-                activeProvider = window.solflare;
-            } 
-            // Phantom check
-            else if (window.solana && window.solana.isPhantom) {
-                activeProvider = window.solana;
-            } 
-            // Diğer standart cüzdanlar
-            else if (window.solana) {
-                activeProvider = window.solana;
+        // --- CÜZDAN BAĞLANTI MANTIĞI (GÜNCELLENMİŞ) ---
+        async function connectWallet() {
+            console.log("Bağlantı denemesi başlatıldı...");
+            
+            // 1. Sağlayıcıyı (Provider) Belirle
+            const getProvider = () => {
+                if ("solflare" in window && window.solflare?.isSolflare) return window.solflare;
+                if ("solana" in window && window.solana?.isPhantom) return window.solana;
+                if ("solana" in window) return window.solana;
+                return null;
+            };
+
+            activeProvider = getProvider();
+
+            if (!activeProvider) {
+                alert("Solana cüzdanı bulunamadı! Lütfen Solflare veya Phantom yükleyin.");
+                window.open("https://solflare.com/", "_blank");
+                return;
             }
 
-            if (activeProvider) {
-                try {
-                    const resp = await activeProvider.connect();
-                    walletAddress = resp.publicKey.toString();
-                    document.getElementById('wallet-status').innerText = "LINKED: " + walletAddress.slice(0,6) + "...";
-                    document.getElementById('wallet-status').style.color = "#00ff00";
-                    document.getElementById('connectBtn').style.display = "none";
-                    document.getElementById('wallet-type').innerText = activeProvider.isSolflare ? "Solflare Active" : "Phantom Active";
-                } catch (err) { console.error("Connection failed", err); }
-            } else {
-                alert("Solflare or Phantom not found! Please install a Solana wallet.");
+            try {
+                // Bağlantı İsteği
+                const resp = await activeProvider.connect();
+                walletAddress = resp.publicKey.toString();
+                
+                // UI Güncelleme
+                document.getElementById('wallet-status').innerText = "CONNECTED: " + walletAddress.slice(0,6) + "...";
+                document.getElementById('wallet-status').style.color = "#00ff00";
+                document.getElementById('connectBtn').style.display = "none";
+                document.getElementById('wallet-type').innerText = activeProvider.isSolflare ? "Solflare Active" : "Phantom Active";
+                
+                console.log("Cüzdan bağlandı:", walletAddress);
+            } catch (err) {
+                console.error("Kullanıcı bağlantıyı reddetti:", err);
+                alert("Bağlantı reddedildi.");
             }
         }
 
@@ -191,27 +201,27 @@
         });
 
         function handlePurchase(key, price) {
-            if (!walletAddress) return alert("Connect Solflare or Phantom first!");
-            // Payment Logic simulation
+            if (!walletAddress) return alert("Önce cüzdanınızı bağlayın!");
+            // Satın alım simülasyonu (v7.7.4'te gerçek SOL transferi eklenecek)
             gridData[key] = nationSelect.value;
             gridPrices[key] = price * 1.10;
             localStorage.setItem('border_data_v7', JSON.stringify(gridData));
             localStorage.setItem('border_prices_v7', JSON.stringify(gridPrices));
             render();
-            alert(`Conquered using ${activeProvider.isSolflare ? 'Solflare' : 'Phantom'}!`);
+            alert(`Piksel ${price.toFixed(2)} USD karşılığında fethedildi!`);
         }
 
         function establishState() {
-            if (!walletAddress) return alert("Connect wallet first!");
+            if (!walletAddress) return alert("Önce cüzdanınızı bağlayın!");
             const n = document.getElementById('customName').value, f = document.getElementById('customFlag').value;
-            if(!n || !f) return alert("Missing data!");
+            if(!n || !f) return alert("İsim ve Bayrak URL gerekli!");
             const opt = document.createElement('option');
             opt.value = f; opt.textContent = n.toUpperCase();
             nationSelect.insertBefore(opt, nationSelect.firstChild);
             nationSelect.value = f;
             const img = new Image(); img.crossOrigin = "anonymous";
             img.src = f; img.onload = () => { flagCache[f] = img; render(); };
-            alert("Official Nation Established!");
+            alert("Devletiniz 100 USD karşılığında tescillendi!");
         }
 
         window.addEventListener('wheel', e => {
