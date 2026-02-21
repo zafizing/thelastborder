@@ -34,10 +34,7 @@ canvas{
   color:#fff;
   box-shadow:0 0 20px rgba(0,0,0,0.6);
 }
-#ui h2{
-  margin-top:0;
-  font-size:18px;
-}
+#ui h2{ margin:0 0 10px 0; font-size:18px; }
 select{
   width:100%;
   padding:8px;
@@ -69,151 +66,129 @@ select{
 </div>
 
 <script>
-const MAP_W = 4000;
-const MAP_H = 2000;
-const SLOT = 15;
+const MAP_W=4000, MAP_H=2000, SLOT=15;
 
-const mapCanvas = document.getElementById("mapCanvas");
-const paintCanvas = document.getElementById("paintCanvas");
-const mapCtx = mapCanvas.getContext("2d");
-const paintCtx = paintCanvas.getContext("2d");
+const mapCanvas=document.getElementById("mapCanvas");
+const paintCanvas=document.getElementById("paintCanvas");
+const mapCtx=mapCanvas.getContext("2d");
+const paintCtx=paintCanvas.getContext("2d");
+paintCtx.imageSmoothingEnabled=false;
 
-paintCtx.imageSmoothingEnabled = false;
+const container=document.getElementById("canvas-container");
 
-const container = document.getElementById("canvas-container");
+let scale=1, offsetX=0, offsetY=0;
+let isDragging=false, dragX=0, dragY=0;
 
-let scale = 1;
-let offsetX = 0;
-let offsetY = 0;
-
-let isDragging = false;
-let dragStartX = 0;
-let dragStartY = 0;
-
-let landMaskData = null;
-
-let paintedSlots = JSON.parse(localStorage.getItem("worldPaintData") || "{}");
-
-const flagCache = {};
+let landMaskData=null;
+let painted=JSON.parse(localStorage.getItem("worldPaintData")||"{}");
+const flagCache={};
 
 function updateTransform(){
-  container.style.transform = `translate(${offsetX}px, ${offsetY}px) scale(${scale})`;
+  container.style.transform=`translate(${offsetX}px,${offsetY}px) scale(${scale})`;
 }
 
-container.addEventListener("mousedown", e=>{
-  isDragging = true;
-  dragStartX = e.clientX;
-  dragStartY = e.clientY;
+container.addEventListener("mousedown",e=>{
+  isDragging=true;
+  dragX=e.clientX;
+  dragY=e.clientY;
 });
-window.addEventListener("mouseup", ()=> isDragging=false);
-window.addEventListener("mousemove", e=>{
+window.addEventListener("mouseup",()=>isDragging=false);
+window.addEventListener("mousemove",e=>{
   if(!isDragging) return;
-  offsetX += (e.clientX - dragStartX);
-  offsetY += (e.clientY - dragStartY);
-  dragStartX = e.clientX;
-  dragStartY = e.clientY;
+  offsetX+=e.clientX-dragX;
+  offsetY+=e.clientY-dragY;
+  dragX=e.clientX;
+  dragY=e.clientY;
   updateTransform();
 });
 
-window.addEventListener("wheel", e=>{
+window.addEventListener("wheel",e=>{
   e.preventDefault();
-  const zoomIntensity = 0.1;
-  const wheel = e.deltaY < 0 ? 1 : -1;
-  const zoom = Math.exp(wheel * zoomIntensity);
-
-  const rect = container.getBoundingClientRect();
-  const cx = (e.clientX - rect.left);
-  const cy = (e.clientY - rect.top);
-
-  offsetX -= cx*(zoom-1);
-  offsetY -= cy*(zoom-1);
-  scale *= zoom;
-
+  const zoom=Math.exp((e.deltaY<0?1:-1)*0.1);
+  const rect=container.getBoundingClientRect();
+  const cx=e.clientX-rect.left;
+  const cy=e.clientY-rect.top;
+  offsetX-=cx*(zoom-1);
+  offsetY-=cy*(zoom-1);
+  scale*=zoom;
   updateTransform();
 },{passive:false});
 
 function loadMap(){
-  const img = new Image();
-  img.crossOrigin = "anonymous";
-  img.onload = ()=>{
+  const img=new Image();
+  img.crossOrigin="anonymous";
+  img.onload=()=>{
     mapCtx.fillStyle="black";
     mapCtx.fillRect(0,0,MAP_W,MAP_H);
     mapCtx.drawImage(img,0,0,MAP_W,MAP_H);
-    landMaskData = mapCtx.getImageData(0,0,MAP_W,MAP_H);
-    redrawAll();
+    landMaskData=mapCtx.getImageData(0,0,MAP_W,MAP_H);
+    redraw();
   };
-  img.onerror = ()=>{
-    mapCtx.fillStyle="gray";
+  img.onerror=()=>{
+    mapCtx.fillStyle="#777";
     mapCtx.fillRect(0,0,MAP_W,MAP_H);
-    landMaskData = mapCtx.getImageData(0,0,MAP_W,MAP_H);
+    landMaskData=mapCtx.getImageData(0,0,MAP_W,MAP_H);
   };
-  img.src="https://upload.wikimedia.org/wikipedia/commons/b/bb/World_map_blank_gmt.svg";
+
+  // PNG raster (CORS safe)
+  img.src="https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_-_low_resolution_gray.png";
 }
 
 function isLand(x,y){
-  const px = Math.floor(x);
-  const py = Math.floor(y);
+  const px=Math.floor(x), py=Math.floor(y);
   if(px<0||py<0||px>=MAP_W||py>=MAP_H) return false;
-  const i = (py*MAP_W+px)*4;
-  const r = landMaskData.data[i];
-  const g = landMaskData.data[i+1];
-  const b = landMaskData.data[i+2];
-  return !(r===0 && g===0 && b===0);
+  const i=(py*MAP_W+px)*4;
+  const r=landMaskData.data[i];
+  const g=landMaskData.data[i+1];
+  const b=landMaskData.data[i+2];
+  return (r+g+b)>30; // siyah tolerans
 }
 
-paintCanvas.addEventListener("click", e=>{
-  const rect = container.getBoundingClientRect();
-  const x = (e.clientX - rect.left)/scale;
-  const y = (e.clientY - rect.top)/scale;
-
+paintCanvas.addEventListener("click",e=>{
+  if(!landMaskData) return;
+  const rect=container.getBoundingClientRect();
+  const x=(e.clientX-rect.left)/scale;
+  const y=(e.clientY-rect.top)/scale;
   if(!isLand(x,y)) return;
 
-  const gx = Math.floor(x/SLOT);
-  const gy = Math.floor(y/SLOT);
-  const key = gx+","+gy;
-
-  const country = document.getElementById("countrySelect").value;
-  paintedSlots[key] = country;
-  localStorage.setItem("worldPaintData", JSON.stringify(paintedSlots));
-  redrawAll();
+  const gx=Math.floor(x/SLOT);
+  const gy=Math.floor(y/SLOT);
+  painted[gx+","+gy]=countrySelect.value;
+  localStorage.setItem("worldPaintData",JSON.stringify(painted));
+  redraw();
 });
 
 function loadFlag(code){
   return new Promise(res=>{
     if(flagCache[code]) return res(flagCache[code]);
-    const img = new Image();
+    const img=new Image();
     img.crossOrigin="anonymous";
-    img.onload=()=>{
-      flagCache[code]=img;
-      res(img);
-    };
+    img.onload=()=>{flagCache[code]=img;res(img);}
     img.src=`https://flagcdn.com/w320/${code}.png`;
   });
 }
 
-async function redrawAll(){
+async function redraw(){
   paintCtx.clearRect(0,0,MAP_W,MAP_H);
+  const visited=new Set();
 
-  const visited = new Set();
-
-  for(const key in paintedSlots){
+  for(const key in painted){
     if(visited.has(key)) continue;
-    const [gx,gy] = key.split(",").map(Number);
-    const country = paintedSlots[key];
+    const [gx,gy]=key.split(",").map(Number);
+    const country=painted[key];
 
-    const queue=[[gx,gy]];
+    const stack=[[gx,gy]];
     const group=[];
     visited.add(key);
 
-    while(queue.length){
-      const [x,y]=queue.pop();
+    while(stack.length){
+      const [x,y]=stack.pop();
       group.push([x,y]);
       [[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{
-        const nx=x+d[0], ny=y+d[1];
-        const nkey=nx+","+ny;
-        if(paintedSlots[nkey]===country && !visited.has(nkey)){
-          visited.add(nkey);
-          queue.push([nx,ny]);
+        const nk=(x+d[0])+","+(y+d[1]);
+        if(painted[nk]===country&&!visited.has(nk)){
+          visited.add(nk);
+          stack.push([x+d[0],y+d[1]]);
         }
       });
     }
@@ -223,17 +198,14 @@ async function redrawAll(){
     const minY=Math.min(...group.map(g=>g[1]));
     const maxY=Math.max(...group.map(g=>g[1]));
 
-    const width=(maxX-minX+1)*SLOT;
-    const height=(maxY-minY+1)*SLOT;
+    const w=(maxX-minX+1)*SLOT;
+    const h=(maxY-minY+1)*SLOT;
 
     const flag=await loadFlag(country);
 
     paintCtx.save();
-    paintCtx.globalCompositeOperation="source-over";
-    paintCtx.drawImage(flag,minX*SLOT,minY*SLOT,width,height);
-
+    paintCtx.drawImage(flag,minX*SLOT,minY*SLOT,w,h);
     paintCtx.globalCompositeOperation="destination-in";
-
     paintCtx.beginPath();
     group.forEach(([x,y])=>{
       paintCtx.rect(x*SLOT,y*SLOT,SLOT,SLOT);
