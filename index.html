@@ -1,77 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE LAST BORDER | Redraw History</title>
-    <style>
-        body {
-            background-color: #1a1a1a;
-            color: #d4af37;
-            font-family: 'Courier New', Courier, monospace;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-            text-align: center;
-            background-image: url('https://www.transparenttextures.com/patterns/old-map.png');
-        }
-        h1 {
-            font-size: 3.5rem;
-            letter-spacing: 8px;
-            text-transform: uppercase;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #d4af37;
-            padding-bottom: 10px;
-        }
-        p {
-            font-size: 1.4rem;
-            max-width: 850px;
-            line-height: 1.6;
-            color: #f0e68c;
-            font-style: italic;
-        }
-        .cta-button {
-            margin-top: 30px;
-            padding: 15px 45px;
-            background-color: #d4af37;
-            color: #1a1a1a;
-            font-weight: bold;
-            text-transform: uppercase;
-            border: none;
-            cursor: pointer;
-            font-size: 1.3rem;
-            transition: 0.3s;
-            box-shadow: 0px 0px 15px rgba(212, 175, 55, 0.5);
-        }
-        .cta-button:hover {
-            background-color: #f0e68c;
-            transform: scale(1.05);
-            box-shadow: 0px 0px 25px rgba(212, 175, 55, 0.8);
-        }
-        #countdown {
-            margin-top: 40px;
-            font-size: 3.5rem;
-            color: #ff4500;
-            font-weight: bold;
-            text-shadow: 3px 3px #000;
-        }
-        .footer {
-            margin-top: 60px;
-            font-size: 0.9rem;
-            color: #666;
-            letter-spacing: 2px;
-        }
-    </style>
-</head>
-<body>
-
-    <h1>THE LAST BORDER</h1>
-    <p>"Your borders were drawn by others. Are you strong enough to erase them?"</p>
-    
-    <button class="cta-button" onclick="alert('The recruitment begins soon. Prepare your wallet.')">JOIN THE ARMY (COMING SOON)</button>
+<button id="walletButton" class="cta-button" onclick="connectWallet()">JOIN THE ARMY (CONNECT WALLET)</button>
 
     <div id="countdown">LOADING...</div>
 
@@ -80,30 +7,51 @@
     </div>
 
     <script>
-        // HEDEF TARİH: 24 Şubat 2026, Saat 12:00 (GMT+3 için ayarlandı)
+        // --- GERİ SAYIM MANTIĞI ---
         const launchDate = new Date("Feb 24, 2026 12:00:00").getTime();
-
         function updateCountdown() {
             const now = new Date().getTime();
             const distance = launchDate - now;
-
             if (distance < 0) {
                 document.getElementById("countdown").innerHTML = "THE WAR HAS BEGUN";
                 return;
             }
-
             const h = Math.floor(distance / (1000 * 60 * 60));
             const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
             const s = Math.floor((distance % (1000 * 60)) / 1000);
-
             document.getElementById("countdown").innerHTML = 
-                (h < 10 ? "0" + h : h) + ":" + 
-                (m < 10 ? "0" + m : m) + ":" + 
-                (s < 10 ? "0" + s : s);
+                (h < 10 ? "0" + h : h) + ":" + (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
         }
-
         setInterval(updateCountdown, 1000);
-        updateCountdown(); 
+        updateCountdown();
+
+        // --- CÜZDAN BAĞLAMA MANTIĞI ---
+        async function connectWallet() {
+            const button = document.getElementById('walletButton');
+            
+            // Phantom veya benzeri bir cüzdan var mı kontrol et
+            if ('solana' in window) {
+                const provider = window.solana;
+                if (provider.isPhantom) {
+                    try {
+                        // Cüzdana bağlanma isteği gönder
+                        const response = await window.solana.connect();
+                        const pubKey = response.publicKey.toString();
+                        
+                        // Buton metnini kısaltılmış cüzdan adresi yap (Örn: 4a2...9xZ)
+                        button.innerText = pubKey.slice(0, 4) + "..." + pubKey.slice(-4);
+                        button.style.backgroundColor = "#4CAF50"; // Başarılıysa yeşil yap
+                        console.log("Soldier enlisted: ", pubKey);
+                        
+                    } catch (err) {
+                        console.error("User rejected the request", err);
+                        alert("Connection rejected. We need soldiers, not cowards.");
+                    }
+                }
+            } else {
+                // Cüzdan yoksa Phantom indirme sayfasına yönlendir veya uyar
+                alert("Solana wallet (Phantom) not found! Install it to join the conquest.");
+                window.open("https://phantom.app/", "_blank");
+            }
+        }
     </script>
-</body>
-</html>
