@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.5.1 INTEL</title>
+    <title>THE LAST BORDER | v7.5.2 OCEAN INTEL</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
@@ -13,7 +13,6 @@
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #arsenal-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
         
-        /* YENİ: SAĞ ALT BİLGİ PANELİ */
         #pixel-intel { 
             bottom: 20px; right: 20px; width: 200px; 
             border: 1px solid #00ff00; color: #00ff00;
@@ -47,10 +46,16 @@
         </div>
 
         <div id="pixel-intel" class="panel">
-            <div><span class="intel-label">TERRITORY:</span> <span id="intel-name">NONE</span></div>
-            <div><span class="intel-label">PRICE:</span> <span id="intel-price">1.00 USD</span></div>
-            <div><span class="intel-label">STATUS:</span> <span id="intel-status">UNCLAIMED</span></div>
-            <div style="font-size: 10px; color: #444; margin-top: 5px;">COORDS: <span id="intel-coords">0,0</span></div>
+            <div id="intel-main-content">
+                <div><span class="intel-label">TERRITORY:</span> <span id="intel-name">NONE</span></div>
+                <div><span class="intel-label">PRICE:</span> <span id="intel-price">1.00 USD</span></div>
+                <div><span class="intel-label">STATUS:</span> <span id="intel-status">AVAILABLE</span></div>
+                <div style="font-size: 10px; color: #444; margin-top: 5px;">COORDS: <span id="intel-coords">0,0</span></div>
+            </div>
+            <div id="intel-sea-content" style="display:none; color: #5bc0de; text-align: center; font-weight: bold;">
+                <span class="intel-label" style="color:#5bc0de">INTERNATIONAL WATERS</span><br>
+                PIXELS CANNOT BE CLAIMED
+            </div>
         </div>
 
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
@@ -62,6 +67,8 @@
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
         const intelPanel = document.getElementById('pixel-intel');
+        const intelMain = document.getElementById('intel-main-content');
+        const intelSea = document.getElementById('intel-sea-content');
 
         const W = 4000, H = 2000, SLOT = 8.94; 
         canvas.width = W; canvas.height = H;
@@ -107,31 +114,44 @@
 
         function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
 
-        // MOUSE MOVE İLE BİLGİ PANELİ GÜNCELLEME
         window.addEventListener('mousemove', e => {
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
 
             if (x >= 0 && x <= W && y >= 0 && y <= H) {
-                const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
-                const key = `${col},${row}`;
-                const nationCode = gridData[key];
-                
                 intelPanel.style.display = 'block';
-                document.getElementById('intel-coords').innerText = `${col},${row}`;
                 
-                if (nationCode) {
-                    const option = Array.from(nationSelect.options).find(opt => opt.value === nationCode);
-                    document.getElementById('intel-name').innerText = option ? option.text : "CUSTOM STATE";
-                    document.getElementById('intel-status').innerText = "OCCUPIED";
-                    document.getElementById('intel-status').style.color = "#ff4500";
-                    document.getElementById('intel-price').innerText = "1.10 USD"; // Örnek artış
+                // DENİZ KONTROLÜ
+                const p = hitCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+                const isSea = (p[0] < 50 && p[1] < 50 && p[2] < 50);
+
+                if (isSea) {
+                    intelMain.style.display = 'none';
+                    intelSea.style.display = 'block';
+                    intelPanel.style.borderColor = '#5bc0de';
                 } else {
-                    document.getElementById('intel-name').innerText = "NONE";
-                    document.getElementById('intel-status').innerText = "AVAILABLE";
-                    document.getElementById('intel-status').style.color = "#00ff00";
-                    document.getElementById('intel-price').innerText = "1.00 USD";
+                    intelMain.style.display = 'block';
+                    intelSea.style.display = 'none';
+                    intelPanel.style.borderColor = '#00ff00';
+                    
+                    const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
+                    const key = `${col},${row}`;
+                    const nationCode = gridData[key];
+                    
+                    document.getElementById('intel-coords').innerText = `${col},${row}`;
+                    if (nationCode) {
+                        const option = Array.from(nationSelect.options).find(opt => opt.value === nationCode);
+                        document.getElementById('intel-name').innerText = option ? option.text : "CUSTOM STATE";
+                        document.getElementById('intel-status').innerText = "OCCUPIED";
+                        document.getElementById('intel-status').style.color = "#ff4500";
+                        document.getElementById('intel-price').innerText = "1.10 USD";
+                    } else {
+                        document.getElementById('intel-name').innerText = "NONE";
+                        document.getElementById('intel-status').innerText = "AVAILABLE";
+                        document.getElementById('intel-status').style.color = "#00ff00";
+                        document.getElementById('intel-price').innerText = "1.00 USD";
+                    }
                 }
             } else {
                 intelPanel.style.display = 'none';
@@ -161,14 +181,11 @@
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
-            
             const p = hitCtx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
             if (p[0] < 50 && p[1] < 50 && p[2] < 50) return;
-
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
             if (gridData[key] === nationSelect.value) return;
-
             ammo--;
             document.getElementById('ammoCount').innerText = ammo;
             gridData[key] = nationSelect.value;
@@ -205,7 +222,6 @@
             const img = new Image(); img.crossOrigin = "anonymous";
             img.src = f; img.onload = () => { flagCache[f] = img; render(); };
         }
-
         initNations();
         setInterval(render, 5000);
     </script>
