@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.4.6 50K SLOTS</title>
+    <title>THE LAST BORDER | v7.4.7 REAL ESTATE</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
@@ -21,7 +21,7 @@
     </style>
 </head>
 <body>
-    <div id="loading">CALIBRATING 50,000 SLOTS...</div>
+    <div id="loading">RESETTING MAP & CALIBRATING SLOTS...</div>
     <div id="war-room">
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 16px;">WAR COMMAND</h2>
@@ -42,13 +42,15 @@
     </div>
 
     <script>
+        // TEMİZLİK: Eski boyamaları silmek için bu satırı bir kez çalıştırıp sonra silebilirsin.
+        // localStorage.removeItem('data_v7.4'); 
+
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const container = document.getElementById('canvas-container');
         const nationSelect = document.getElementById('nationSelect');
 
-        // SLOT KÜÇÜLTÜLDÜ: 50.000 alana ulaşmak için 20'den 12.6'ya çekildi.
-        const W = 4000, H = 2000, SLOT = 12.6; 
+        const W = 4000, H = 2000, SLOT = 12.6; // ~50.000 Slot
         canvas.width = W; canvas.height = H;
 
         let ammo = parseInt(localStorage.getItem('ammo_v7.4') || '500');
@@ -107,10 +109,11 @@
         window.addEventListener('mouseup', e => { if (isDragging && !dragMoved) handleConquer(e); isDragging = false; });
 
         function handleConquer(e) {
-            if (ammo <= 0) return;
+            if (ammo <= 0) return alert("NO AMMO! BUY TO CLAIM.");
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) / (rect.width / W);
             const y = (e.clientY - rect.top) / (rect.height / H);
+            
             if (x < 0 || y < 0 || x > W || y > H) return;
 
             const p = hitCtx.getImageData(x, y, 1, 1).data;
@@ -118,7 +121,15 @@
 
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
             const key = `${col},${row}`;
-            if (gridData[key] === nationSelect.value) return;
+
+            // BURASI BOŞ MU? (Initial Sale Logics)
+            if (!gridData[key]) {
+                console.log("NEW AREA CLAIMED: 1$ EQUIVALENT SPENT.");
+            } else if (gridData[key] === nationSelect.value) {
+                return; // Zaten senin
+            } else {
+                console.log("WAR! OVERWRITING PREVIOUS OWNER.");
+            }
 
             ammo--; localStorage.setItem('ammo_v7.4', ammo);
             document.getElementById('ammoCount').innerText = ammo;
