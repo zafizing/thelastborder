@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v7.4 TRUE BORDER</title>
+    <title>THE LAST BORDER | v7.6 PREMIUM</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
@@ -13,7 +13,7 @@
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #arsenal-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
         
-        select, input, button { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; }
+        select, input, button { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 10px; width: 100%; cursor: pointer; margin-top: 8px; font-family: inherit; font-size: 11px; outline: none; }
         .ammo-display { font-size: 28px; color: #00ff00; text-align: center; margin: 10px 0; text-shadow: 0 0 10px #00ff00; font-weight: bold; }
         .btn-buy { background: #00ff00; color: #000; font-weight: bold; border: none; }
         .btn-found { background: #ff4500; color: #fff; font-weight: bold; border: none; margin-top: 15px; }
@@ -24,7 +24,7 @@
 </head>
 <body>
 
-    <div id="loading">CALIBRATING BORDER SENSORS...</div>
+    <div id="loading">OPTIMIZING VECTOR MERGE...</div>
 
     <div id="war-room">
         <div id="ui-overlay" class="panel">
@@ -42,8 +42,8 @@
         <div id="arsenal-panel" class="panel">
             <h2 style="margin:0; color: #00ff00; font-size: 16px; text-align: center;">ARSENAL</h2>
             <div class="ammo-display" id="ammoCount">0</div>
-            <button class="btn-buy" onclick="buyAmmo(500, 0.1)">+500 PX</button>
-            <button class="btn-buy" onclick="buyAmmo(2000, 0.3)">+2000 PX</button>
+            <button class="btn-buy" onclick="buyAmmo(500)">+500 PX</button>
+            <button class="btn-buy" onclick="buyAmmo(2000)">+2000 PX</button>
         </div>
 
         <div id="intel-panel">COORD: 0,0 | STATUS: STANDBY</div>
@@ -64,7 +64,6 @@
         let customNations = JSON.parse(localStorage.getItem('custom_v7.4') || '[]');
         const flagCache = {};
 
-        // 1. DÜNYA ÜLKELERİ + ÖZEL LİSTE
         async function initNations() {
             try {
                 const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
@@ -108,7 +107,6 @@
 
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
-        // BORDER LOCK İÇİN DAHA NET SINIRLI HARİTA
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
 
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
@@ -136,16 +134,11 @@
             const x = (e.clientX - originX) / scale;
             const y = (e.clientY - originY) / scale;
 
-            // --- BORDER LOCK SENSORS (TRUE CLASSIFICATION) ---
-            // Haritayı geçici bir buffer'a çizip rengi kontrol ediyoruz
             const offCanvas = document.createElement('canvas');
             offCanvas.width = W; offCanvas.height = H;
             const offCtx = offCanvas.getContext('2d');
             offCtx.drawImage(mapImg, 0, 0, W, H);
             const p = offCtx.getImageData(x, y, 1, 1).data;
-            
-            // Eğer tıkalan yer Siyah (Deniz) ise veya şeffafsa iptal et
-            // (Harita gri/beyaz kara, siyah deniz olduğu için RGB toplamı 50 altı denizdir)
             if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; 
 
             const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
@@ -160,8 +153,6 @@
 
         function render() {
             ctx.clearRect(0, 0, W, H);
-            
-            // 1. Haritayı baz olarak çiz
             ctx.drawImage(mapImg, 0, 0, W, H);
             ctx.imageSmoothingEnabled = false;
 
@@ -171,7 +162,7 @@
                 let [c, r] = key.split(',').map(Number);
                 let nation = gridData[key];
 
-                // MERGE ALGORİTMASI (Keskinlik için geri geldi)
+                // MERGE ALGORİTMASI
                 let cw = 1, ch = 1;
                 while (gridData[`${c + cw},${r}`] === nation) cw++;
                 let canGrow = true;
@@ -184,9 +175,24 @@
                 const img = flagCache[nation];
                 if(img) {
                     ctx.save();
-                    // GLOBAL COMPOSITE MASKING (Sadece karaya çiz)
                     ctx.globalCompositeOperation = "source-atop";
-                    ctx.drawImage(img, c * SLOT, r * SLOT, cw * SLOT, ch * SLOT);
+                    
+                    // --- QUALITY MERGE FIX: ASPECT RATIO PROTECTION ---
+                    const areaW = cw * SLOT;
+                    const areaH = ch * SLOT;
+                    const areaX = c * SLOT;
+                    const areaY = r * SLOT;
+
+                    // Bayrağı sündürmeden en boy oranını hesapla
+                    let s = Math.min(areaW / img.width, areaH / img.height);
+                    let finalW = img.width * s;
+                    let finalH = img.height * s;
+                    let offX = areaX + (areaW - finalW) / 2;
+                    let offY = areaY + (areaH - finalH) / 2;
+
+                    // Arka planı bayrağın baskın rengiyle doldur (isteğe bağlı) veya sadece çiz
+                    ctx.drawImage(img, offX, offY, finalW, finalH);
+                    
                     ctx.restore();
                 }
             }
