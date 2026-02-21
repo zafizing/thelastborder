@@ -65,31 +65,34 @@
             color: #666;
             letter-spacing: 2px;
         }
+        /* SEÇİM PENCERESİ */
         .modal {
             display: none;
             position: fixed;
             z-index: 1000;
             left: 0; top: 0; width: 100%; height: 100%;
-            background-color: rgba(0, 0, 0, 0.9);
+            background-color: rgba(0, 0, 0, 0.95);
         }
         .modal-content {
             background-color: #1a1a1a;
             margin: 15% auto;
-            padding: 30px;
+            padding: 40px;
             border: 2px solid #d4af37;
             width: 320px;
-            border-radius: 5px;
+            border-radius: 8px;
+            box-shadow: 0px 0px 50px rgba(212, 175, 55, 0.2);
         }
         .wallet-option {
             display: block;
             width: 100%;
             padding: 15px;
             margin: 15px 0;
-            background: #2a2a2a;
+            background: #222;
             color: #d4af37;
             border: 1px solid #d4af37;
             cursor: pointer;
             font-weight: bold;
+            font-family: 'Courier New', Courier, monospace;
             text-transform: uppercase;
         }
         .wallet-option:hover { background: #d4af37; color: #1a1a1a; }
@@ -105,17 +108,17 @@
 
     <div id="walletModal" class="modal">
         <div class="modal-content">
-            <h2 style="color: #d4af37;">CHOOSE WEAPON</h2>
-            <button class="wallet-option" onclick="selectWallet('phantom')">PHANTOM</button>
-            <button class="wallet-option" onclick="selectWallet('solflare')">SOLFLARE</button>
-            <button onclick="closeModal()" style="background:none; border:none; color:gray; cursor:pointer; text-decoration:underline;">ABORT</button>
+            <h2 style="color: #d4af37; margin-top: 0;">SELECT WEAPON</h2>
+            <button class="wallet-option" onclick="connect('phantom')">PHANTOM</button>
+            <button class="wallet-option" onclick="connect('solflare')">SOLFLARE</button>
+            <button onclick="closeModal()" style="background:none; border:none; color:gray; cursor:pointer; margin-top:10px;">[ RETREAT ]</button>
         </div>
     </div>
 
     <div class="footer">DECENTRALIZED CONQUEST PROTOCOL | POWERED BY SOLANA</div>
 
     <script>
-        // SAYAÇ
+        // SAYAÇ (Dokunulmadı)
         const launchDate = new Date("Feb 24, 2026 12:00:00").getTime();
         function updateCountdown() {
             const now = new Date().getTime();
@@ -128,39 +131,40 @@
         }
         setInterval(updateCountdown, 1000); updateCountdown();
 
-        // MODAL KONTROL
         function openModal() { document.getElementById('walletModal').style.display = "block"; }
         function closeModal() { document.getElementById('walletModal').style.display = "none"; }
 
-        // CÜZDAN BAĞLAMA (Geliştirilmiş Agresif Mod)
-        async function selectWallet(walletType) {
-            closeModal();
-            const button = document.getElementById('walletButton');
+        // CÜZDAN BAĞLAMA (Yeni Nesil - Hata Payı Sıfır Modu)
+        async function connect(type) {
             let provider = null;
+            
+            if (type === 'phantom') {
+                provider = window?.phantom?.solana || window?.solana;
+            } else if (type === 'solflare') {
+                provider = window?.solflare || window?.solana;
+            }
+
+            if (!provider) {
+                alert(type.toUpperCase() + " not found. Redirecting to store...");
+                window.open(type === 'phantom' ? "https://phantom.app/" : "https://solflare.com/", "_blank");
+                return;
+            }
 
             try {
-                if (walletType === 'phantom') {
-                    provider = window?.phantom?.solana || window?.solana;
-                } else if (walletType === 'solflare') {
-                    provider = window?.solflare || (window?.solana?.isSolflare ? window.solana : null);
-                }
-
-                if (!provider) {
-                    alert(walletType.toUpperCase() + " not found. Please install the extension.");
-                    window.open(walletType === 'phantom' ? "https://phantom.app/" : "https://solflare.com/", "_blank");
-                    return;
-                }
-
-                // Cüzdanı tetikle
+                // Bağlantı isteği
                 const resp = await provider.connect();
-                const pubKey = resp.publicKey.toString();
-                button.innerText = pubKey.slice(0, 4) + "..." + pubKey.slice(-4);
-                button.style.backgroundColor = "#4CAF50";
-                button.style.color = "white";
+                const key = resp.publicKey.toString();
                 
+                // Başarılı olursa butonu güncelle
+                const btn = document.getElementById('walletButton');
+                btn.innerText = key.slice(0,4) + "..." + key.slice(-4);
+                btn.style.backgroundColor = "#4CAF50";
+                btn.style.color = "white";
+                closeModal();
+                console.log("Joined:", key);
             } catch (err) {
-                console.error("Connection error:", err);
-                alert("Connection failed. Make sure your wallet is unlocked.");
+                console.error("Link error:", err);
+                alert("Connection failed! Open your " + type + " extension and unlock it first.");
             }
         }
     </script>
