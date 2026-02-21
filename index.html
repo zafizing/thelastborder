@@ -5,36 +5,46 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>THE LAST BORDER | Redraw History</title>
     <style>
-        body {
+        body, html {
             background-color: #1a1a1a; color: #d4af37;
             font-family: 'Courier New', Courier, monospace;
-            margin: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh;
-            background-image: url('https://www.transparenttextures.com/patterns/old-map.png');
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
         }
-        #intro-screen { text-align: center; z-index: 10; }
-        h1 { font-size: 3rem; letter-spacing: 5px; border-bottom: 2px solid #d4af37; padding-bottom: 10px; }
         
+        /* GİRİŞ EKRANI */
+        #intro-screen {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 100vh; width: 100vw; text-align: center;
+            background-image: url('https://www.transparenttextures.com/patterns/old-map.png');
+            position: absolute; top: 0; left: 0; z-index: 50;
+        }
+        h1 { font-size: 3rem; letter-spacing: 5px; border-bottom: 2px solid #d4af37; padding-bottom: 10px; }
         .cta-button {
             padding: 15px 40px; background-color: #d4af37; color: #1a1a1a; font-weight: bold;
             text-transform: uppercase; border: none; cursor: pointer; font-size: 1.2rem; transition: 0.3s;
             box-shadow: 0px 0px 15px rgba(212, 175, 55, 0.5); margin: 20px;
         }
 
-        /* WAR ROOM & ZOOM */
-        #war-room { display: none; width: 100vw; height: 100vh; position: relative; cursor: grab; }
-        #war-room:active { cursor: grabbing; }
-        #canvas-container { position: absolute; transform-origin: 0 0; }
+        /* WAR ROOM (HARİTA) */
+        #war-room { 
+            display: none; width: 100vw; height: 100vh; position: relative; 
+            background-color: #000; overflow: hidden;
+        }
+        #canvas-container { 
+            position: absolute; transform-origin: 0 0; will-change: transform;
+        }
         canvas { 
             background-image: url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg');
-            background-size: cover; background-color: #000; image-rendering: pixelated;
+            background-size: cover; background-color: #0d0d0d;
         }
 
-        /* UI OVERLAY */
+        /* UI CONTROLS */
         #ui-overlay {
             position: fixed; top: 20px; left: 20px; z-index: 100;
             background: rgba(26, 26, 26, 0.9); padding: 15px; border: 1px solid #d4af37;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
         }
-        select { background: #000; color: #d4af37; border: 1px solid #d4af37; padding: 5px; font-family: inherit; }
+        select { background: #000; color: #d4af37; border: 1px solid #d4af37; padding: 8px; font-family: inherit; font-size: 1rem; }
 
         /* MODAL */
         .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); }
@@ -46,22 +56,25 @@
 
     <div id="intro-screen">
         <h1>THE LAST BORDER</h1>
-        <div id="countdown" style="font-size: 2rem; color: #ff4500; margin: 20px;">LOADING...</div>
-        <button id="walletButton" class="cta-button" onclick="openModal()">CONNECT WALLET</button>
+        <div id="countdown" style="font-size: 2rem; color: #ff4500; margin: 20px;">71:15:32</div>
+        <button id="walletButton" class="cta-button" onclick="openModal()">CONNECT WEAPON (WALLET)</button>
+        <p style="color: #666; font-size: 0.8rem;">DECENTRALIZED CONQUEST PROTOCOL</p>
     </div>
 
     <div id="war-room">
         <div id="ui-overlay">
-            <h3 style="margin:0 0 10px 0;">SELECT NATION</h3>
+            <h3 style="margin:0 0 10px 0; color: #ff4500;">BATTLEFIELD ACTIVE</h3>
             <select id="nationSelect">
-                <option value="https://flagcdn.com/w40/tr.png">TURKEY 🇹🇷</option>
-                <option value="https://flagcdn.com/w40/us.png">USA 🇺🇸</option>
-                <option value="https://flagcdn.com/w40/de.png">GERMANY 🇩🇪</option>
-                <option value="https://flagcdn.com/w40/gb.png">UK 🇬🇧</option>
-                <option value="https://flagcdn.com/w40/ru.png">RUSSIA 🇷🇺</option>
-                <option value="https://flagcdn.com/w40/cn.png">CHINA 🇨🇳</option>
+                <option value="https://flagcdn.com/w160/tr.png">TURKEY 🇹🇷</option>
+                <option value="https://flagcdn.com/w160/us.png">USA 🇺🇸</option>
+                <option value="https://flagcdn.com/w160/gb.png">UK 🇬🇧</option>
+                <option value="https://flagcdn.com/w160/de.png">GERMANY 🇩🇪</option>
+                <option value="https://flagcdn.com/w160/ru.png">RUSSIA 🇷🇺</option>
+                <option value="https://flagcdn.com/w160/cn.png">CHINA 🇨🇳</option>
+                <option value="https://flagcdn.com/w160/jp.png">JAPAN 🇯🇵</option>
+                <option value="https://flagcdn.com/w160/fr.png">FRANCE 🇫🇷</option>
             </select>
-            <p style="font-size: 0.7rem; margin-top: 10px;">Scroll to Zoom | Drag to Move</p>
+            <p style="font-size: 0.7rem; margin-top: 10px; color: #aaa;">Scroll: Zoom | Drag: Pan | Click: Conquer</p>
         </div>
         <div id="canvas-container">
             <canvas id="war-canvas"></canvas>
@@ -70,104 +83,131 @@
 
     <div id="walletModal" class="modal">
         <div class="modal-content">
-            <h2 style="color: #d4af37;">SELECT WEAPON</h2>
+            <h2 style="color: #d4af37;">CHOOSE WALLET</h2>
             <button class="wallet-option" onclick="connect('phantom')">PHANTOM</button>
             <button class="wallet-option" onclick="connect('solflare')">SOLFLARE</button>
-            <button onclick="closeModal()" style="background:none; border:none; color:gray; cursor:pointer;">[ RETREAT ]</button>
+            <button onclick="closeModal()" style="background:none; border:none; color:gray; cursor:pointer;">[ ABORT ]</button>
         </div>
     </div>
 
     <script>
-        // --- SAYAÇ ---
+        // SAYAÇ
         const launchDate = new Date("Feb 24, 2026 12:00:00").getTime();
         function updateCountdown() {
             const now = new Date().getTime();
-            const distance = launchDate - now;
-            if (distance < 0) { document.getElementById("countdown").innerHTML = "WAR BEGUN"; return; }
-            const h = Math.floor(distance / (3600000));
-            const m = Math.floor((distance % 3600000) / 60000);
-            const s = Math.floor((distance % 60000) / 1000);
+            const dist = launchDate - now;
+            if (dist < 0) { document.getElementById("countdown").innerHTML = "WAR BEGUN"; return; }
+            const h = Math.floor(dist / 3600000);
+            const m = Math.floor((dist % 3600000) / 60000);
+            const s = Math.floor((dist % 60000) / 1000);
             document.getElementById("countdown").innerHTML = h + ":" + (m<10?"0"+m:m) + ":" + (s<10?"0"+s:s);
         }
         setInterval(updateCountdown, 1000);
 
-        // --- CÜZDAN ---
         function openModal() { document.getElementById('walletModal').style.display = "block"; }
         function closeModal() { document.getElementById('walletModal').style.display = "none"; }
 
         async function connect(type) {
             let provider = (type === 'phantom') ? (window?.phantom?.solana || window?.solana) : window?.solflare;
             if (provider) {
-                await provider.connect();
-                document.getElementById('intro-screen').style.display = "none";
-                document.getElementById('war-room').style.display = "block";
-                initWarSystem();
-                closeModal();
+                try {
+                    await provider.connect();
+                    document.getElementById('intro-screen').style.display = "none";
+                    document.getElementById('war-room').style.display = "block";
+                    initWarSystem();
+                    closeModal();
+                } catch(e) { alert("Connect rejected."); }
             }
         }
 
-        // --- ZOOM & HARİTA SİSTEMİ ---
+        // HARİTA SİSTEMİ
         function initWarSystem() {
             const canvas = document.getElementById('war-canvas');
             const ctx = canvas.getContext('2d');
             const container = document.getElementById('canvas-container');
             
-            canvas.width = 3000; // Geniş bir harita alanı
-            canvas.height = 1500;
+            canvas.width = 4000; // Daha geniş savaş alanı
+            canvas.height = 2000;
 
-            let scale = 1;
-            let originX = 0;
-            let originY = 0;
+            let scale = 0.5; // Başlangıç zoom seviyesi
+            let originX = (window.innerWidth - canvas.width * scale) / 2;
+            let originY = (window.innerHeight - canvas.height * scale) / 2;
+            
             let isDragging = false;
+            let dragStarted = false;
             let startX, startY;
+            let moveThreshold = 5; // Sürükleme algılama sınırı
 
-            // Zoom Fonksiyonu
+            updateTransform();
+
+            // ZOOM
             window.addEventListener('wheel', (e) => {
                 e.preventDefault();
-                const zoomSpeed = 0.1;
+                const zoomSpeed = 0.15;
+                const oldScale = scale;
+                
                 if (e.deltaY < 0) scale *= (1 + zoomSpeed);
                 else scale /= (1 + zoomSpeed);
-                scale = Math.min(Math.max(0.5, scale), 5); // Zoom sınırları
+                
+                scale = Math.min(Math.max(0.1, scale), 8);
+                
+                // Fare ucuna göre zoom yapma mantığı
+                const mouseX = e.clientX;
+                const mouseY = e.clientY;
+                originX = mouseX - (mouseX - originX) * (scale / oldScale);
+                originY = mouseY - (mouseY - originY) * (scale / oldScale);
+                
                 updateTransform();
             }, { passive: false });
 
-            // Sürükleme (Pan)
+            // PAN (SÜRÜKLEME)
             window.addEventListener('mousedown', (e) => {
-                if(e.target.id === 'war-room' || e.target.id === 'war-canvas') {
-                    isDragging = true;
-                    startX = e.clientX - originX;
-                    startY = e.clientY - originY;
-                }
+                if (e.button !== 0) return;
+                isDragging = true;
+                dragStarted = false;
+                startX = e.clientX - originX;
+                startY = e.clientY - originY;
             });
 
             window.addEventListener('mousemove', (e) => {
                 if (isDragging) {
-                    originX = e.clientX - startX;
-                    originY = e.clientY - startY;
-                    updateTransform();
+                    const dx = Math.abs(e.clientX - (startX + originX));
+                    const dy = Math.abs(e.clientY - (startY + originY));
+                    if (dx > moveThreshold || dy > moveThreshold) {
+                        dragStarted = true;
+                        originX = e.clientX - startX;
+                        originY = e.clientY - startY;
+                        updateTransform();
+                    }
                 }
             });
 
-            window.addEventListener('mouseup', () => isDragging = false);
+            window.addEventListener('mouseup', (e) => {
+                if (!dragStarted && isDragging) {
+                    // Sürükleme yapılmadıysa tıklama olarak algıla
+                    deployFlag(e);
+                }
+                isDragging = false;
+            });
 
             function updateTransform() {
                 container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
             }
 
-            // Bayrak Basma
-            canvas.addEventListener('click', (e) => {
-                if (isDragging) return;
+            function deployFlag(e) {
                 const rect = canvas.getBoundingClientRect();
                 const x = (e.clientX - rect.left) / scale;
                 const y = (e.clientY - rect.top) / scale;
                 
                 const flagImg = new Image();
+                flagImg.crossOrigin = "anonymous";
                 flagImg.src = document.getElementById('nationSelect').value;
                 flagImg.onload = () => {
-                    // 15x10 piksellik bayrak basar
-                    ctx.drawImage(flagImg, Math.floor(x/15)*15, Math.floor(y/10)*10, 15, 10);
+                    // Bayrak Boyutu: 24x16 (Daha net görünüm için)
+                    const fW = 24, fH = 16;
+                    ctx.drawImage(flagImg, Math.floor(x/fW)*fW, Math.floor(y/fH)*fH, fW, fH);
                 };
-            });
+            }
         }
     </script>
 </body>
