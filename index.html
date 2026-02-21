@@ -3,120 +3,191 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE LAST BORDER</title>
+    <title>THE LAST BORDER | Redraw History</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; color: #d4af37; overflow: hidden; font-family: monospace; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        #war-room { width: 100vw; height: 100vh; position: relative; display: flex; align-items: center; justify-content: center; }
         
-        /* EKRAN YÖNETİMİ */
-        #intro-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; width: 100vw; position: fixed; z-index: 999; background: #050505; }
-        #war-room { display: none; width: 100vw; height: 100vh; position: relative; background: #000; }
+        #canvas-container { position: absolute; cursor: crosshair; box-shadow: 0 0 100px rgba(212, 175, 55, 0.1); }
         
-        #canvas-container { position: absolute; transform-origin: 0 0; }
-        canvas { background: #111; border: 1px solid #333; cursor: crosshair; }
+        canvas { 
+            background-color: #0a0a0a;
+            /* Harita Görseli ve Epik Filtre */
+            background-image: url('https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg');
+            background-size: contain; background-repeat: no-repeat; background-position: center;
+            filter: invert(0.9) brightness(0.8) contrast(1.2) sepia(0.2); 
+            image-rendering: pixelated;
+        }
 
-        /* UI */
-        #ui-overlay { position: fixed; top: 20px; left: 20px; z-index: 1000; background: rgba(0,0,0,0.9); padding: 15px; border: 1px solid #d4af37; }
-        .cta-button { padding: 15px 30px; background: #d4af37; color: #000; border: none; font-weight: bold; cursor: pointer; text-transform: uppercase; }
-        select { background: #000; color: #d4af37; border: 1px solid #d4af37; padding: 5px; width: 100%; }
+        #ui-overlay {
+            position: fixed; top: 20px; left: 20px; z-index: 1000;
+            background: rgba(5, 5, 5, 0.95); padding: 20px; border: 1px solid #d4af37;
+            box-shadow: 0 0 20px #000; pointer-events: auto;
+        }
+
+        select { background: #000; color: #d4af37; border: 1px solid #d4af37; padding: 10px; width: 100%; font-family: inherit; font-weight: bold; }
+        h3 { margin: 0 0 10px 0; font-size: 0.9rem; letter-spacing: 3px; color: #ff4500; }
+        .stats { font-size: 0.7rem; color: #666; margin-top: 10px; border-top: 1px dashed #333; padding-top: 5px; }
     </style>
 </head>
 <body>
 
-    <div id="intro-screen">
-        <h1 style="letter-spacing: 10px;">THE LAST BORDER</h1>
-        <div id="countdown" style="font-size: 2rem; color: #ff4500; margin: 20px;">SYSTEM READY</div>
-        <button class="cta-button" onclick="startWar()">INITIALIZE CONQUEST</button>
-    </div>
-
-    <div id="war-room">
-        <div id="ui-overlay">
-            <h3 style="margin:0 0 10px 0;">COMMAND CENTER</h3>
-            <select id="nationSelect">
-                <option value="https://flagcdn.com/w160/tr.png">TURKEY 🇹🇷</option>
-                <option value="https://flagcdn.com/w160/us.png">USA 🇺🇸</option>
-                <option value="https://flagcdn.com/w160/ru.png">RUSSIA 🇷🇺</option>
-            </select>
-            <p style="font-size: 0.7rem; color: #888; margin-top: 10px;">[DRAG] PAN | [SCROLL] ZOOM</p>
-            <button onclick="localStorage.clear(); location.reload();" style="color:red; background:none; border:none; cursor:pointer; font-size:0.6rem;">[ RESET SYSTEM ]</button>
-        </div>
-        <div id="canvas-container">
-            <canvas id="war-canvas"></canvas>
+<div id="war-room">
+    <div id="ui-overlay">
+        <h3>BATTLEFIELD ACTIVE</h3>
+        <select id="nationSelect">
+            <option value="tr">TURKEY 🇹🇷</option>
+            <option value="us">USA 🇺🇸</option>
+            <option value="ru">RUSSIA 🇷🇺</option>
+            <option value="cn">CHINA 🇨🇳</option>
+            <option value="de">GERMANY 🇩🇪</option>
+        </select>
+        <div class="stats">
+            STATUS: REDEPLOYING<br>
+            GRID: 15x10 | AUTO-MERGE: ON
         </div>
     </div>
+    <div id="canvas-container" id="draggable">
+        <canvas id="war-canvas"></canvas>
+    </div>
+</div>
 
-    <script>
-        const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d');
-        const container = document.getElementById('canvas-container');
-        const mapImg = new Image();
+<script>
+    const canvas = document.getElementById('war-canvas');
+    const ctx = canvas.getContext('2d');
+    const container = document.getElementById('canvas-container');
+    
+    const SLOT_W = 15, SLOT_H = 10;
+    const worldWidth = 4000, worldHeight = 2000;
+    
+    // Pikselleri ve sahiplerini tutan hafıza (Birleştirme için)
+    let gridData = {}; 
+
+    canvas.width = worldWidth;
+    canvas.height = worldHeight;
+
+    let scale = 0.4;
+    let originX = (window.innerWidth - worldWidth * scale) / 2;
+    let originY = (window.innerHeight - worldHeight * scale) / 2;
+    
+    let isDragging = false, dragMoved = false, startX, startY;
+
+    // Bayrak Linkleri
+    const flagUrls = {
+        tr: "https://flagcdn.com/w160/tr.png",
+        us: "https://flagcdn.com/w160/us.png",
+        ru: "https://flagcdn.com/w160/ru.png",
+        cn: "https://flagcdn.com/w160/cn.png",
+        de: "https://flagcdn.com/w160/de.png"
+    };
+
+    function updateTransform() {
+        container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+    }
+    updateTransform();
+
+    // ZOOM MANTIĞI
+    window.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+        const mouseX = e.clientX, mouseY = e.clientY;
+        const oldScale = scale;
+        scale = Math.min(Math.max(0.1, scale * zoom), 15);
+        originX = mouseX - (mouseX - originX) * (scale / oldScale);
+        originY = mouseY - (mouseY - originY) * (scale / oldScale);
+        updateTransform();
+    }, { passive: false });
+
+    // KAYDIRMA MANTIĞI (Savrulma Fix)
+    window.addEventListener('mousedown', (e) => {
+        if(e.target.closest('#ui-overlay')) return;
+        isDragging = true; dragMoved = false;
+        startX = e.clientX - originX; startY = e.clientY - originY;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            dragMoved = true;
+            originX = e.clientX - startX; originY = e.clientY - startY;
+            updateTransform();
+        }
+    });
+
+    window.addEventListener('mouseup', (e) => {
+        if (!dragMoved && isDragging) deploy(e);
+        isDragging = false;
+    });
+
+    function deploy(e) {
+        const rect = canvas.getBoundingClientRect();
+        const x = (e.clientX - rect.left) / scale;
+        const y = (e.clientY - rect.top) / scale;
+
+        const col = Math.floor(x / SLOT_W);
+        const row = Math.floor(y / SLOT_H);
+        const nation = document.getElementById('nationSelect').value;
+
+        // Hafızaya kaydet
+        gridData[`${col},${row}`] = nation;
+
+        renderCanvas();
+    }
+
+    function renderCanvas() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Harita zaten CSS background'da, buraya sadece bayrakları çiziyoruz
         
-        // HARİTA KAYNAĞI - Daha güvenilir bir URL veya direkt canvas çizimi
-        mapImg.crossOrigin = "anonymous";
-        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
-
-        let scale = 0.5;
-        let originX = 0, originY = 0;
-        let isDragging = false, startX, startY, dragMoved = false;
-
-        function startWar() {
-            document.getElementById('intro-screen').style.display = 'none';
-            document.getElementById('war-room').style.display = 'block';
+        const visited = new Set();
+        
+        for (let key in gridData) {
+            if (visited.has(key)) continue;
             
-            canvas.width = 4000;
-            canvas.height = 2000;
-            
-            // Harita resmini canvas'ın arkasına çiziyoruz
-            mapImg.onload = drawMap;
-            if (mapImg.complete) drawMap();
-            
-            updateTransform();
-        }
+            let [c, r] = key.split(',').map(Number);
+            let nation = gridData[key];
 
-        function drawMap() {
-            ctx.drawImage(mapImg, 0, 0, canvas.width, canvas.height);
-        }
+            // AKILLI BİRLEŞTİRME (Merge Logic)
+            let width = 1, height = 1;
 
-        function updateTransform() {
-            container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
-        }
-
-        // ZOOM & PAN (KONTROLLERİ SADELEŞTİRDİM)
-        window.addEventListener('wheel', (e) => {
-            if (document.getElementById('war-room').style.display === 'none') return;
-            e.preventDefault();
-            const zoom = e.deltaY < 0 ? 1.1 : 0.9;
-            scale = Math.min(Math.max(0.1, scale * zoom), 10);
-            updateTransform();
-        }, { passive: false });
-
-        window.addEventListener('mousedown', (e) => {
-            isDragging = true; dragMoved = false;
-            startX = e.clientX - originX; startY = e.clientY - originY;
-        });
-
-        window.addEventListener('mousemove', (e) => {
-            if (isDragging) {
-                dragMoved = true;
-                originX = e.clientX - startX; originY = e.clientY - startY;
-                updateTransform();
+            // Yatayda kaç tane aynı?
+            while (gridData[`${c + width},${r}`] === nation) {
+                width++;
             }
-        });
-
-        window.addEventListener('mouseup', (e) => {
-            if (!dragMoved && isDragging) {
-                const rect = canvas.getBoundingClientRect();
-                const x = (e.clientX - rect.left) / scale;
-                const y = (e.clientY - rect.top) / scale;
-                
-                const flag = new Image();
-                flag.crossOrigin = "anonymous";
-                flag.src = document.getElementById('nationSelect').value;
-                flag.onload = () => {
-                    ctx.drawImage(flag, Math.floor(x/15)*15, Math.floor(y/10)*10, 15, 10);
-                };
+            // Dikeyde bu genişlikte kaç satır aynı?
+            let canGrowVertical = true;
+            while (canGrowVertical) {
+                for (let i = 0; i < width; i++) {
+                    if (gridData[`${c + i},${r + height}`] !== nation) {
+                        canGrowVertical = false; break;
+                    }
+                }
+                if (canGrowVertical) height++;
             }
-            isDragging = false;
-        });
-    </script>
+
+            // Çizim yap ve ziyaret edildi işaretle
+            for (let i = 0; i < width; i++) {
+                for (let j = 0; j < height; j++) {
+                    visited.add(`${c + i},${r + j}`);
+                }
+            }
+
+            drawFlag(nation, c * SLOT_W, r * SLOT_H, width * SLOT_W, height * SLOT_H);
+        }
+    }
+
+    function drawFlag(nation, x, y, w, h) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = flagUrls[nation];
+        img.onload = () => {
+            ctx.imageSmoothingEnabled = false; // Jilet gibi netlik
+            ctx.drawImage(img, x, y, w, h);
+            // Kenarlık (Epik his için)
+            ctx.strokeStyle = "rgba(0,0,0,0.3)";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, w, h);
+        };
+    }
+</script>
+
 </body>
 </html>
