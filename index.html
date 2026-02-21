@@ -1,185 +1,171 @@
 <!DOCTYPE html>
 <html lang="tr">
 <head>
-<meta charset="UTF-8">
-<title>World Conquest Simulator</title>
-<style>
-html,body{margin:0;overflow:hidden;background:#000;font-family:Arial}
-#container{position:absolute;top:0;left:0;transform-origin:0 0}
-canvas{position:absolute;top:0;left:0}
-#ui{
-position:fixed;top:20px;left:20px;
-background:rgba(20,20,20,.85);
-backdrop-filter:blur(10px);
-padding:15px;border-radius:12px;
-color:#fff;width:250px
-}
-select{width:100%;padding:8px;background:#111;color:#fff;border:none;border-radius:6px}
-</style>
+    <meta charset="UTF-8">
+    <title>THE LAST BORDER | v2.5 FINAL</title>
+    <style>
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        #war-room { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; position: relative; }
+        #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
+        canvas { background-color: #000; image-rendering: pixelated; }
+        #ui {
+            position: fixed; top: 20px; left: 20px; z-index: 1000;
+            background: rgba(10, 10, 10, 0.9); padding: 20px; border: 1px solid #ff4500;
+            width: 260px; color: #ff4500; box-shadow: 0 0 30px #000;
+        }
+        select { background: #000; color: #ff4500; border: 1px solid #ff4500; padding: 10px; width: 100%; margin-bottom: 10px; cursor: pointer; }
+        .info { font-size: 10px; color: #666; line-height: 1.5; }
+    </style>
 </head>
 <body>
 
-<div id="ui">
-<h3>Command Center</h3>
-<select id="country">
-<option value="tr" selected>Türkiye (TR)</option>
-<option value="us">USA</option>
-<option value="ru">Russia</option>
-<option value="de">Germany</option>
-<option value="fr">France</option>
-<option value="cn">China</option>
-<option value="jp">Japan</option>
-</select>
-</div>
-
-<div id="container">
-<canvas id="map" width="4000" height="2000"></canvas>
-<canvas id="paint" width="4000" height="2000"></canvas>
+<div id="war-room">
+    <div id="ui">
+        <h2 style="margin:0 0 10px 0; font-size:16px;">TACTICAL MAP v2.5</h2>
+        <select id="nationSelect"></select>
+        <div class="info">
+            [DRAG] PAN (v1.0.6 STABLE)<br>
+            [SCROLL] ZOOM TO CURSOR<br>
+            [CLICK] CONQUER & MERGE (MASKED)
+        </div>
+        <button onclick="localStorage.clear(); location.reload();" style="margin-top:10px; width:100%; background:none; border:1px solid #444; color:#444; font-size:9px; cursor:pointer;">HARD RESET</button>
+    </div>
+    <div id="canvas-container">
+        <canvas id="war-canvas"></canvas>
+    </div>
 </div>
 
 <script>
-const W=4000,H=2000,SLOT=15;
-const map=document.getElementById("map");
-const paint=document.getElementById("paint");
-const mctx=map.getContext("2d");
-const pctx=paint.getContext("2d");
-pctx.imageSmoothingEnabled=false;
+    const canvas = document.getElementById('war-canvas');
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const container = document.getElementById('canvas-container');
+    const select = document.getElementById('nationSelect');
 
-const container=document.getElementById("container");
+    const WORLD_W = 4000, WORLD_H = 2000, SLOT = 15;
+    let gridData = JSON.parse(localStorage.getItem('world_data_v2.5') || '{}');
 
-let scale=1,offX=0,offY=0;
-let dragging=false,dx=0,dy=0;
+    // NATIONS
+    const nations = {"tr":"TÜRKİYE 🇹🇷","us":"USA 🇺🇸","az":"AZERBAIJAN 🇦🇿","ru":"RUSSIA 🇷🇺","de":"GERMANY 🇩🇪","cn":"CHINA 🇨🇳","gb":"UK 🇬🇧","fr":"FRANCE 🇫🇷"};
+    Object.entries(nations).forEach(([code, name]) => {
+        let opt = document.createElement('option'); opt.value = code; opt.textContent = name; select.appendChild(opt);
+    });
 
-let maskData=null;
-let painted=JSON.parse(localStorage.getItem("worldPaintData")||"{}");
-const flagCache={};
+    canvas.width = WORLD_W; canvas.height = WORLD_H;
 
-function updateTransform(){
-container.style.transform=`translate(${offX}px,${offY}px) scale(${scale})`;
-}
+    // v1.0.6 CAMERA LOGIC
+    let scale = 0.5, originX = (window.innerWidth - WORLD_W * scale) / 2, originY = (window.innerHeight - WORLD_H * scale) / 2;
+    let isDragging = false, startX, startY;
 
-container.onmousedown=e=>{dragging=true;dx=e.clientX;dy=e.clientY};
-window.onmouseup=()=>dragging=false;
-window.onmousemove=e=>{
-if(!dragging)return;
-offX+=e.clientX-dx;
-offY+=e.clientY-dy;
-dx=e.clientX;dy=e.clientY;
-updateTransform();
-};
+    // CORS BYPASS MAP LOADING
+    const mapImg = new Image();
+    mapImg.crossOrigin = "anonymous";
+    const rawMapUrl = 'https://upload.wikimedia.org/wikipedia/commons/b/bb/World_map_blank_gmt.svg';
+    mapImg.src = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(rawMapUrl);
 
-window.onwheel=e=>{
-e.preventDefault();
-const zoom=Math.exp((e.deltaY<0?1:-1)*0.1);
-const rect=container.getBoundingClientRect();
-const cx=e.clientX-rect.left;
-const cy=e.clientY-rect.top;
-offX-=cx*(zoom-1);
-offY-=cy*(zoom-1);
-scale*=zoom;
-updateTransform();
-};
+    function updateTransform() {
+        container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+    }
 
-async function loadMap(){
-const svgUrl="https://upload.wikimedia.org/wikipedia/commons/b/bb/World_map_blank_gmt.svg";
-const res=await fetch(svgUrl);
-const text=await res.text();
-const blob=new Blob([text],{type:"image/svg+xml"});
-const url=URL.createObjectURL(blob);
-const img=new Image();
-img.onload=()=>{
-mctx.fillStyle="black";
-mctx.fillRect(0,0,W,H);
-mctx.drawImage(img,0,0,W,H);
-maskData=mctx.getImageData(0,0,W,H);
-redraw();
-};
-img.src=url;
-}
+    mapImg.onload = () => { render(); updateTransform(); };
 
-function isLand(x,y){
-if(!maskData)return false;
-const px=Math.floor(x),py=Math.floor(y);
-if(px<0||py<0||px>=W||py>=H)return false;
-const i=(py*W+px)*4;
-const r=maskData.data[i];
-const g=maskData.data[i+1];
-const b=maskData.data[i+2];
-return (r+g+b)>40;
-}
+    // ZOOM (v1.0.6 Odaklı)
+    window.addEventListener('wheel', (e) => {
+        e.preventDefault();
+        const delta = e.deltaY < 0 ? 1.1 : 0.9;
+        const oldScale = scale;
+        scale = Math.min(Math.max(0.1, scale * delta), 15);
+        originX = e.clientX - (e.clientX - originX) * (scale / oldScale);
+        originY = e.clientY - (e.clientY - originY) * (scale / oldScale);
+        updateTransform();
+    }, { passive: false });
 
-paint.onclick=e=>{
-const rect=container.getBoundingClientRect();
-const x=(e.clientX-rect.left)/scale;
-const y=(e.clientY-rect.top)/scale;
-if(!isLand(x,y))return;
-const gx=Math.floor(x/SLOT);
-const gy=Math.floor(y/SLOT);
-painted[gx+","+gy]=country.value;
-localStorage.setItem("worldPaintData",JSON.stringify(painted));
-redraw();
-};
+    // PANNING
+    window.addEventListener('mousedown', (e) => {
+        if(e.target.closest('#ui')) return;
+        isDragging = true; startX = e.clientX - originX; startY = e.clientY - originY;
+    });
 
-function loadFlag(code){
-return new Promise(res=>{
-if(flagCache[code])return res(flagCache[code]);
-const img=new Image();
-img.onload=()=>{flagCache[code]=img;res(img);}
-img.src=`https://flagcdn.com/w320/${code}.png`;
-});
-}
+    window.addEventListener('mousemove', (e) => {
+        if (isDragging) {
+            originX = e.clientX - startX; originY = e.clientY - startY;
+            updateTransform();
+        }
+    });
 
-async function redraw(){
-pctx.clearRect(0,0,W,H);
-const visited=new Set();
+    window.addEventListener('mouseup', (e) => {
+        if (isDragging) {
+            const moved = Math.hypot(e.clientX - (startX + originX), e.clientY - (startY + originY));
+            if (moved < 5) deploy(e);
+        }
+        isDragging = false;
+    });
 
-for(const key in painted){
-if(visited.has(key))continue;
-const [gx,gy]=key.split(",").map(Number);
-const country=painted[key];
+    function deploy(e) {
+        const x = (e.clientX - originX) / scale;
+        const y = (e.clientY - originY) / scale;
+        
+        // Kara Kontrolü (Siyah denizi boyama)
+        const p = ctx.getImageData(x, y, 1, 1).data;
+        if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; 
 
-const stack=[[gx,gy]];
-const group=[];
-visited.add(key);
+        const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
+        gridData[`${col},${row}`] = select.value;
+        localStorage.setItem('world_data_v2.5', JSON.stringify(gridData));
+        render();
+    }
 
-while(stack.length){
-const [x,y]=stack.pop();
-group.push([x,y]);
-[[1,0],[-1,0],[0,1],[0,-1]].forEach(d=>{
-const nk=(x+d[0])+","+(y+d[1]);
-if(painted[nk]===country&&!visited.has(nk)){
-visited.add(nk);
-stack.push([x+d[0],y+d[1]]);
-}
-});
-}
+    function render() {
+        ctx.clearRect(0, 0, WORLD_W, WORLD_H);
+        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, WORLD_W, WORLD_H);
 
-const minX=Math.min(...group.map(g=>g[0]));
-const maxX=Math.max(...group.map(g=>g[0]));
-const minY=Math.min(...group.map(g=>g[1]));
-const maxY=Math.max(...group.map(g=>g[1]));
-const w=(maxX-minX+1)*SLOT;
-const h=(maxY-minY+1)*SLOT;
+        // 1. BASE MAP
+        ctx.save();
+        ctx.filter = "brightness(0.7) contrast(1.2)";
+        ctx.drawImage(mapImg, 0, 0, WORLD_W, WORLD_H);
+        ctx.restore();
 
-const flag=await loadFlag(country);
+        // 2. DYNAMIC MERGE & GEOGRAPHIC MASKING
+        const visited = new Set();
+        for (let key in gridData) {
+            if (visited.has(key)) continue;
+            let [c, r] = key.split(',').map(Number);
+            let nation = gridData[key];
+            let w = 1, h = 1;
 
-pctx.save();
-pctx.drawImage(flag,minX*SLOT,minY*SLOT,w,h);
-pctx.globalCompositeOperation="destination-in";
-pctx.beginPath();
-group.forEach(([x,y])=>pctx.rect(x*SLOT,y*SLOT,SLOT,SLOT));
-pctx.fill();
-pctx.restore();
+            // Genişlik ölç
+            while (gridData[`${c + w},${r}`] === nation) w++;
+            // Yükseklik ölç
+            let canGrow = true;
+            while (canGrow) {
+                for (let i = 0; i < w; i++) {
+                    if (gridData[`${c + i},${r + h}`] !== nation) { canGrow = false; break; }
+                }
+                if (canGrow) h++;
+            }
 
-pctx.save();
-pctx.globalCompositeOperation="destination-atop";
-pctx.drawImage(map,0,0);
-pctx.restore();
-}
-}
+            for (let i = 0; i < w; i++) {
+                for (let j = 0; j < h; j++) visited.add(`${c + i},${r + j}`);
+            }
 
-loadMap();
-updateTransform();
+            drawFlag(nation, c * SLOT, r * SLOT, w * SLOT, h * SLOT);
+        }
+    }
+
+    function drawFlag(nation, x, y, w, h) {
+        const flag = new Image();
+        flag.crossOrigin = "anonymous";
+        flag.src = `https://flagcdn.com/w320/${nation}.png`;
+        flag.onload = () => {
+            ctx.save();
+            // CLIP: Sadece bu dikdörtgen içini etkile
+            ctx.beginPath(); ctx.rect(x, y, w, h); ctx.clip();
+            // MASK: Sadece haritadaki kara piksellerine (non-black) çiz
+            ctx.globalCompositeOperation = "source-atop";
+            ctx.imageSmoothingEnabled = false;
+            ctx.drawImage(flag, x, y, w, h);
+            ctx.restore();
+        };
+    }
 </script>
 </body>
 </html>
