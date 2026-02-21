@@ -80,40 +80,60 @@
     </div>
 
     <script>
-        // SABİT SAYAÇ MANTIĞI
+        // --- 72 SAATLİK SABİT SAYAÇ ---
         const launchDate = new Date("Feb 24, 2026 12:00:00").getTime();
+
         function updateCountdown() {
             const now = new Date().getTime();
             const distance = launchDate - now;
+
             if (distance < 0) {
                 document.getElementById("countdown").innerHTML = "THE WAR HAS BEGUN";
                 return;
             }
+
             const h = Math.floor(distance / (1000 * 60 * 60));
             const m = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
             const s = Math.floor((distance % (1000 * 60)) / 1000);
+
             document.getElementById("countdown").innerHTML = 
-                (h < 10 ? "0" + h : h) + ":" + (m < 10 ? "0" + m : m) + ":" + (s < 10 ? "0" + s : s);
+                (h < 10 ? "0" + h : h) + ":" + 
+                (m < 10 ? "0" + m : m) + ":" + 
+                (s < 10 ? "0" + s : s);
         }
+
         setInterval(updateCountdown, 1000);
         updateCountdown();
 
-        // CÜZDAN BAĞLAMA MANTIĞI
+        // --- CÜZDAN BAĞLAMA (PHANTOM & SOLFLARE) ---
         async function connectWallet() {
             const button = document.getElementById('walletButton');
-            const isPhantomInstalled = window.solana && window.solana.isPhantom;
+            
+            // Cüzdan Sağlayıcısını Seç
+            const getProvider = () => {
+                if ('phantom' in window) { return window.phantom?.solana; }
+                if ('solflare' in window) { return window.solflare; }
+                if ('solana' in window) { return window.solana; }
+                return null;
+            };
 
-            if (isPhantomInstalled) {
+            const provider = getProvider();
+
+            if (provider) {
                 try {
-                    const response = await window.solana.connect();
+                    const response = await provider.connect();
                     const pubKey = response.publicKey.toString();
+                    
+                    // Başarılı Bağlantı: Buton rengini ve metnini güncelle
                     button.innerText = pubKey.slice(0, 4) + "..." + pubKey.slice(-4);
-                    button.style.backgroundColor = "#4CAF50";
+                    button.style.backgroundColor = "#4CAF50"; 
+                    button.style.color = "white";
+                    console.log("Soldier address:", pubKey);
                 } catch (err) {
-                    console.log("User rejected");
+                    console.error("Connection rejected by user");
                 }
             } else {
-                alert("Please install Phantom Wallet to continue.");
+                alert("Solana wallet not found! Please install Phantom or Solflare.");
                 window.open("https://phantom.app/", "_blank");
             }
         }
