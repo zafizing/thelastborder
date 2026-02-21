@@ -3,37 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>THE LAST BORDER | GOD MODE</title>
+    <title>THE LAST BORDER | ANCIENT COMMAND</title>
     <style>
-        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-        #war-room { width: 100vw; height: 100vh; position: relative; background: #000; }
-        #canvas-container { position: absolute; cursor: crosshair; }
-        canvas { background-color: #050505; image-rendering: pixelated; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #0a0a0a; overflow: hidden; font-family: 'Courier New', serif; }
+        #war-room { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+        #canvas-container { position: relative; cursor: crosshair; transition: transform 0.1s ease-out; }
+        canvas { 
+            background: #1a1a1a; 
+            image-rendering: pixelated; 
+            box-shadow: 0 0 100px rgba(0,0,0,1), inset 0 0 100px rgba(0,0,0,0.5);
+            border: 2px solid #332b1a;
+        }
 
+        /* UI PANEL */
         #ui-overlay {
             position: fixed; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(10, 10, 10, 0.95); padding: 20px; border: 1px solid #d4af37;
-            box-shadow: 0 0 40px rgba(0,0,0,1); width: 260px;
+            background: rgba(15, 12, 8, 0.95); padding: 25px; border: 1px solid #d4af37;
+            box-shadow: 0 0 30px rgba(0,0,0,1); width: 280px; color: #d4af37;
         }
-        select { background: #000; color: #d4af37; border: 1px solid #d4af37; padding: 10px; width: 100%; font-weight: bold; margin-bottom: 15px; }
-        .info { font-size: 0.7rem; color: #666; line-height: 1.5; text-transform: uppercase; }
-        h2 { margin: 0 0 10px 0; color: #ff4500; font-size: 1rem; letter-spacing: 2px; }
+        h2 { margin: 0 0 15px 0; font-size: 1.2rem; letter-spacing: 3px; color: #8b4513; text-align: center; border-bottom: 1px solid #3d2b1f; padding-bottom: 10px; }
+        select { background: #000; color: #d4af37; border: 1px solid #8b4513; padding: 12px; width: 100%; font-family: inherit; margin-bottom: 20px; }
+        .info { font-size: 0.75rem; color: #7a6a53; line-height: 1.6; border-top: 1px solid #3d2b1f; padding-top: 10px; }
+        button { margin-top: 15px; background: #2a1f14; border: 1px solid #8b4513; color: #8b4513; padding: 8px; width: 100%; cursor: pointer; font-size: 0.7rem; }
     </style>
 </head>
 <body>
 
 <div id="war-room">
     <div id="ui-overlay">
-        <h2>TACTICAL MAP v1.2</h2>
+        <h2>GLOBAL COMMAND</h2>
         <select id="nationSelect"></select>
         <div class="info">
-            [DRAG] PAN (LOCKED TO EDGES)<br>
-            [SCROLL] ZOOM (SMOOTH)<br>
-            [CLICK] DEPLOY ON LAND
+            [SCROLL] MAGNIFICATION (ZOOM)<br>
+            [DRAG] STEER MAP<br>
+            [CLICK] CONQUER TERRITORY
         </div>
-        <button onclick="localStorage.clear(); location.reload();" style="margin-top:15px; width:100%; background:none; border:1px solid #444; color:#444; font-size:9px; cursor:pointer;">SYSTEM RESET</button>
+        <button onclick="localStorage.clear(); location.reload();">RECLAIM LANDS (RESET)</button>
     </div>
-    <div id="canvas-container">
+    <div id="canvas-container" id="map-wrap">
         <canvas id="war-canvas"></canvas>
     </div>
 </div>
@@ -46,49 +53,41 @@
 
     const worldWidth = 4000, worldHeight = 2000;
     const SLOT_W = 15, SLOT_H = 10;
-    let gridData = JSON.parse(localStorage.getItem('border_data') || '{}');
+    let gridData = JSON.parse(localStorage.getItem('border_data_v2') || '{}');
 
-    // TÜM DÜNYA LİSTESİ (ISO KODLARI)
-    const isoNations = {"tr":"TÜRKİYE 🇹🇷","us":"USA 🇺🇸","de":"GERMANY 🇩🇪","ru":"RUSSIA 🇷🇺","cn":"CHINA 🇨🇳","az":"AZERBAIJAN 🇦🇿","fr":"FRANCE 🇫🇷","gb":"UK 🇬🇧","jp":"JAPAN 🇯🇵","it":"ITALY 🇮🇹","br":"BRAZIL 🇧🇷","ca":"CANADA 🇨🇦","au":"AUSTRALIA 🇦🇺","in":"INDIA 🇮🇳","kr":"S. KOREA 🇰🇷","es":"SPAIN 🇪🇸","sa":"SAUDI ARABIA 🇸🇦","ua":"UKRAINE 🇺🇦","kz":"KAZAKHSTAN 🇰🇿","eg":"EGYPT 🇪🇬","gr":"GREECE 🇬🇷","pk":"PAKISTAN 🇵🇰","ir":"IRAN 🇮🇷","nl":"NETHERLANDS 🇳🇱","ch":"SWITZERLAND 🇨🇭","be":"BELGIUM 🇧🇪","se":"SWEDEN 🇸🇪","no":"NORWAY 🇳🇴"};
-    Object.entries(isoNations).forEach(([code, name]) => {
+    // NATIONS - TÜRKİYE FIRST
+    const nations = {"tr":"TÜRKİYE 🇹🇷","us":"USA 🇺🇸","az":"AZERBAIJAN 🇦🇿","ru":"RUSSIA 🇷🇺","de":"GERMANY 🇩🇪","cn":"CHINA 🇨🇳","gb":"UK 🇬🇧","fr":"FRANCE 🇫🇷","jp":"JAPAN 🇯🇵","it":"ITALY 🇮🇹","br":"BRAZIL 🇧🇷","ca":"CANADA 🇨🇦","au":"AUSTRALIA 🇦🇺","in":"INDIA 🇮🇳","kr":"S. KOREA 🇰🇷","es":"SPAIN 🇪🇸","sa":"SAUDI ARABIA 🇸🇦","ua":"UKRAINE 🇺🇦","eg":"EGYPT 🇪🇬","gr":"GREECE 🇬🇷"};
+    Object.entries(nations).forEach(([code, name]) => {
         let opt = document.createElement('option'); opt.value = code; opt.innerHTML = name; select.appendChild(opt);
     });
 
     canvas.width = worldWidth; canvas.height = worldHeight;
 
-    let scale = 0.5, originX = (window.innerWidth - worldWidth*scale)/2, originY = (window.innerHeight - worldHeight*scale)/2;
+    // CAMERA LOGIC (SAVRULMA ENGELLEYİCİ)
+    let scale = 0.45;
+    let originX = (window.innerWidth - worldWidth * scale) / 2;
+    let originY = (window.innerHeight - worldHeight * scale) / 2;
     let isDragging = false, startX, startY;
 
     const mapImg = new Image();
     mapImg.crossOrigin = "anonymous";
-    // Temizlenmiş, adasız ve epik harita
+    // SINIRLARI NET, ADALARI TEMİZLENMİŞ EPİK HARİTA
     mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
 
-    function clampCamera() {
-        // Haritanın dışına çıkmayı engelleyen kilit mekanizması
-        const minX = window.innerWidth - (worldWidth * scale);
-        const minY = window.innerHeight - (worldHeight * scale);
-        
-        if (worldWidth * scale > window.innerWidth) {
-            originX = Math.min(0, Math.max(originX, minX));
-        } else {
-            originX = (window.innerWidth - worldWidth * scale) / 2;
-        }
-
-        if (worldHeight * scale > window.innerHeight) {
-            originY = Math.min(0, Math.max(originY, minY));
-        } else {
-            originY = (window.innerHeight - worldHeight * scale) / 2;
-        }
-    }
-
     function updateTransform() {
-        clampCamera();
+        // Haritanın fazla savrulmasını engelle (Boundary Lock)
+        const pad = 200;
+        const minX = window.innerWidth - (worldWidth * scale) - pad;
+        const minY = window.innerHeight - (worldHeight * scale) - pad;
+        originX = Math.min(pad, Math.max(originX, minX));
+        originY = Math.min(pad, Math.max(originY, minY));
+
         container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
     }
 
     mapImg.onload = () => { renderCanvas(); updateTransform(); };
 
+    // ZOOM (SMOOTH & CENTERED)
     window.addEventListener('wheel', (e) => {
         e.preventDefault();
         const zoom = e.deltaY < 0 ? 1.1 : 0.9;
@@ -99,6 +98,7 @@
         updateTransform();
     }, { passive: false });
 
+    // PANNING
     window.addEventListener('mousedown', (e) => {
         if(e.target.closest('#ui-overlay')) return;
         isDragging = true; startX = e.clientX - originX; startY = e.clientY - originY;
@@ -113,7 +113,6 @@
 
     window.addEventListener('mouseup', (e) => {
         if (isDragging) {
-            // Eğer çok az hareket ettiyse tıkla (deploy) say
             const moved = Math.hypot(e.clientX - (startX + originX), e.clientY - (startY + originY));
             if (moved < 5) deploy(e);
         }
@@ -126,24 +125,32 @@
         const y = (e.clientY - rect.top) / scale;
 
         const p = ctx.getImageData(x, y, 1, 1).data;
-        if (p[0] < 45 && p[1] < 45 && p[2] < 45) return; // Deniz kilidi
+        if (p[0] < 50 && p[1] < 50 && p[2] < 50) return; // Deniz/Siyah Kilidi
 
         const col = Math.floor(x / SLOT_W), row = Math.floor(y / SLOT_H);
         gridData[`${col},${row}`] = select.value;
-        localStorage.setItem('border_data', JSON.stringify(gridData));
+        localStorage.setItem('border_data_v2', JSON.stringify(gridData));
         renderCanvas();
     }
 
     function renderCanvas() {
-        ctx.fillStyle = "#000"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+        // ARKA PLAN (ANCIENT TEXTURE EFFECT)
+        ctx.fillStyle = "#0c0a08";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
         
         ctx.save();
-        // EPİK GÖRSEL AYARI: Derin lacivert tonları ve yüksek kontrast
-        ctx.filter = "brightness(0.5) contrast(1.8) sepia(0.5) hue-rotate(180deg)";
+        // EPİK FİLTRE: Sararmış eski harita, yüksek sınır netliği
+        ctx.filter = "sepia(0.8) contrast(1.2) brightness(0.8) hue-rotate(-20deg)";
         ctx.drawImage(mapImg, 0, 0, canvas.width, canvas.height);
+        
+        // SINIRLARI BELİRGİNLEŞTİRMEK İÇİN İKİNCİ KATMAN
+        ctx.globalAlpha = 0.3;
+        ctx.strokeStyle = "#d4af37";
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(0,0, worldWidth, worldHeight);
         ctx.restore();
 
-        // MERGE LOGIC
+        // MERGE ALGORITHM
         const visited = new Set();
         for (let key in gridData) {
             if (visited.has(key)) continue;
@@ -167,7 +174,9 @@
         img.onload = () => {
             ctx.imageSmoothingEnabled = false;
             ctx.drawImage(img, x, y, w, h);
-            ctx.strokeStyle = "rgba(0,0,0,0.3)"; ctx.strokeRect(x, y, w, h);
+            ctx.strokeStyle = "rgba(0,0,0,0.4)";
+            ctx.lineWidth = 1;
+            ctx.strokeRect(x, y, w, h);
         };
     }
 </script>
