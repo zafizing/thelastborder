@@ -131,4 +131,69 @@
             const x = (e.clientX - originX) / scale, y = (e.clientY - originY) / scale;
             intel.innerText = `COORD: ${Math.floor(x)},${Math.floor(y)} | ANALYZING BORDERS...`;
             if (isDragging) {
-                if(Math.hypot(e.clientX-startX-originX, e.clientY-startY-originY) >
+                if(Math.hypot(e.clientX-startX-originX, e.clientY-startY-originY) > 5) dragMoved = true;
+                originX = e.clientX - startX; originY = e.clientY - startY; updateTransform();
+            }
+        });
+
+        window.addEventListener('mouseup', e => {
+            if (isDragging && !dragMoved) handleConquer(e);
+            isDragging = false;
+        });
+
+        function handleConquer(e) {
+            const x = (e.clientX - originX) / scale, y = (e.clientY - originY) / scale;
+            
+            // SINIR KİLİDİ (POLITICAL LOCK)
+            // Tıklanan yerin piksel verisini al
+            const p = ctx.getImageData(x, y, 1, 1).data;
+            if (p[0] < 30 && p[1] < 30 && p[2] < 30) return; // Deniz ise iptal
+
+            const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
+            // Renk kodunu (Siyasi Kimlik) kaydet (İleride farklı ülkeleri ayırmak için)
+            const regionId = `${p[0]},${p[1]},${p[2]}`; 
+            
+            gridData[`${col},${row}`] = { nation: nationSelect.value, region: regionId };
+            localStorage.setItem('world_v7', JSON.stringify(gridData));
+            render();
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, W, H);
+            ctx.filter = "brightness(0.7) contrast(1.2) hue-rotate(180deg)"; // Epik Mavi Savaş Odası Filtresi
+            ctx.drawImage(mapImg, 0, 0, W, H);
+            ctx.filter = "none";
+
+            const visited = new Set();
+            for (let key in gridData) {
+                if (visited.has(key)) continue;
+                let [c, r] = key.split(',').map(Number);
+                let data = gridData[key];
+                let nation = data.nation;
+
+                let cw = 1, ch = 1;
+                while (gridData[`${c + cw},${r}`]?.nation === nation) cw++;
+                let canGrow = true;
+                while (canGrow) {
+                    for (let i = 0; i < cw; i++) if (gridData[`${c + i},${r + ch}`]?.nation !== nation) { canGrow = false; break; }
+                    if (canGrow) ch++;
+                }
+                for (let i = 0; i < cw; i++) for (let j = 0; j < ch; j++) visited.add(`${c + i},${r + j}`);
+
+                const img = flagCache[nation];
+                if(img) {
+                    ctx.save();
+                    ctx.globalCompositeOperation = "source-atop"; // Karaya hapset
+                    ctx.globalAlpha = 0.9;
+                    ctx.drawImage(img, c * SLOT, r * SLOT, cw * SLOT, ch * SLOT);
+                    ctx.restore();
+                }
+            }
+        }
+
+        loadNations();
+        mapImg.onload = () => { render(); updateTransform(); };
+        setInterval(render, 1000);
+    </script>
+</body>
+</html>
