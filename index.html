@@ -2,34 +2,27 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v8.4.2 PRECISION</title>
+    <title>THE LAST BORDER | v8.5.0 GLOBAL</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
         canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); border-radius: 4px; }
-        
-        #pixel-intel { bottom: 20px; right: 20px; width: 250px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; box-shadow: 0 0 10px rgba(0,255,0,0.2); }
-        #buy-popup { 
-            position: absolute; z-index: 1000; display: none;
-            background: #000; border: 2px solid #ff4500; padding: 12px;
-            width: 180px; box-shadow: 0 0 20px rgba(255, 69, 0, 0.5);
-        }
+        #pixel-intel { bottom: 20px; right: 20px; width: 280px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; }
+        #buy-popup { position: absolute; z-index: 1000; display: none; background: #000; border: 2px solid #ff4500; padding: 12px; width: 180px; box-shadow: 0 0 20px rgba(255, 69, 0, 0.5); }
         .close-pop { position: absolute; top: 2px; right: 5px; cursor: pointer; color: #ff4500; font-size: 14px; }
         #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #wallet-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
-        
         input, select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 8px; width: 100%; box-sizing: border-box; margin-top: 5px; font-family: inherit; }
         button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-weight: bold; border: none; }
         #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff4500; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="loading">
-        <div>CALIBRATING SAT-LINK...</div>
-        <div style="font-size: 10px; margin-top: 10px; color: #666;">LOADING MAP DATA...</div>
-    </div>
+    <div id="loading">SYNCING WITH GLOBAL DATABASE...</div>
     
     <div id="war-room">
         <div id="buy-popup">
@@ -37,18 +30,13 @@
             <div style="text-align: center;">
                 <div style="color:#ff4500; font-weight:bold; font-size:10px;">CONQUER PIXEL</div>
                 <div id="pop-price" style="color:#00ff00; font-size:14px; margin: 8px 0;">1.00 USD</div>
-                <button style="background: #ff4500; color: #fff;" onclick="handlePurchase(1)">EXECUTE COMMAND</button>
+                <button id="execBtn" style="background: #ff4500; color: #fff;" onclick="handlePurchase()">EXECUTE COMMAND</button>
             </div>
         </div>
 
         <div id="ui-overlay" class="panel">
             <h2 style="margin:0; color: #ff4500; font-size: 14px;">WAR COMMAND</h2>
             <select id="nationSelect"></select>
-            <div id="state-creator" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
-                <input type="text" id="customName" placeholder="NATION NAME">
-                <input type="text" id="customFlag" placeholder="FLAG URL">
-                <button style="background: #00ff00; color: #000;" onclick="handlePurchase(100)">ESTABLISH STATE (100$)</button>
-            </div>
         </div>
 
         <div id="wallet-panel" class="panel">
@@ -57,203 +45,202 @@
         </div>
 
         <div id="pixel-intel" class="panel">
-            <div style="color:#ff4500; font-weight:bold; border-bottom: 1px solid #ff4500; margin-bottom: 5px;">LIVE INTEL FEED</div>
+            <div style="color:#ff4500; font-weight:bold; border-bottom: 1px solid #ff4500; margin-bottom: 5px;">GLOBAL INTEL FEED</div>
             <div id="intel-coords">COORD: 0, 0</div>
-            <div id="intel-status" style="margin: 4px 0;">STATUS: READY</div>
+            <div id="intel-status" style="margin: 4px 0; word-break: break-all;">STATUS: SCANNING...</div>
             <div id="intel-price">VALUATION: 1.00 USD</div>
         </div>
 
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
     </div>
 
-    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-
     <script>
-        const HELIUS_KEY = "ec1aa17e-f949-4ab9-a2b2-0a16a3af2cb2"; 
-        const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`;
+        // --- CONFIG ---
+        const SB_URL = "https://vwehxkrcsxvgsonhlpms.supabase.co";
+        const SB_KEY = "sb_publishable_Xu7IJwTu2SlVVL8gqi0HEQ_iZu4Xtxk";
+        const supabase = typeof supabase !== 'undefined' ? supabase : window.supabase.createClient(SB_URL, SB_KEY);
+        
+        const HELIUS_RPC = "https://mainnet.helius-rpc.com/?api-key=ec1aa17e-f949-4ab9-a2b2-0a16a3af2cb2";
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
-        let CURRENT_SOL_USD = 135; // Default Solana Price
+        let SOL_PRICE = 135;
 
+        // --- ENGINE VARS ---
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const container = document.getElementById('canvas-container');
-        const popup = document.getElementById('buy-popup');
         const W = 4000, H = 2000, SLOT = 8.94;
         canvas.width = W; canvas.height = H;
 
-        let gridData = JSON.parse(localStorage.getItem('border_data_v8') || '{}');
-        let gridPrices = JSON.parse(localStorage.getItem('border_prices_v8') || '{}');
+        let globalTerritory = {}; 
         const flagCache = {};
-        let walletAddress = null;
-        let activeProvider = null;
-        let selectedKey = null;
-        let mapLoaded = false;
-
-        let startX, startY, isDragging = false, moved = false;
+        let walletAddress = null, activeProvider = null, selectedKey = null;
+        let mapLoaded = false, dbLoaded = false;
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
+        let startX, startY, isDragging = false, moved = false;
 
+        // --- DB CORE ---
+        async function syncFromDB() {
+            const { data, error } = await supabase.from('territory').select('*');
+            if (error) console.error("DB Sync Error:", error);
+            else {
+                globalTerritory = {};
+                data.forEach(item => {
+                    globalTerritory[item.pixel_key] = item;
+                });
+                dbLoaded = true;
+                checkReady();
+                render();
+            }
+        }
+
+        async function saveToDB(key, address, nation, price) {
+            const { error } = await supabase.from('territory').upsert({
+                pixel_key: key,
+                owner_address: address,
+                nation_code: nation,
+                price: price * 1.25
+            });
+            if (error) alert("DB Save Failed: " + error.message);
+            else syncFromDB();
+        }
+
+        // --- WALLET & TRANS ---
         async function connectWallet() {
             const provider = window.solflare || window.solana;
-            if (!provider) return alert("Solana wallet required!");
-            try {
-                const resp = await provider.connect();
-                walletAddress = (resp.publicKey || provider.publicKey).toString();
-                activeProvider = provider;
-                document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,8);
-                document.getElementById('wallet-status').style.color = "#00ff00";
-                document.getElementById('connectBtn').style.display = "none";
-            } catch (err) { console.error(err); }
+            if (!provider) return alert("Install Phantom/Solflare!");
+            const resp = await provider.connect();
+            walletAddress = (resp.publicKey || provider.publicKey).toString();
+            activeProvider = provider;
+            document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,6) + "...";
+            document.getElementById('wallet-status').style.color = "#00ff00";
+            document.getElementById('connectBtn').style.display = "none";
         }
 
-        // --- DİNAMİK INTEL & DENİZ KONTROLÜ (FIXED) ---
-        function getCanvasCoords(clientX, clientY) {
-            const rect = canvas.getBoundingClientRect();
-            // Client koordinatlarını canvas üzerindeki 4000x2000 ölçeğine tam eşler
-            const x = (clientX - rect.left) * (canvas.width / rect.width);
-            const y = (clientY - rect.top) * (canvas.height / rect.height);
-            return { x, y };
-        }
+        async function handlePurchase() {
+            if (!walletAddress) return alert("Connect wallet first!");
+            const btn = document.getElementById('execBtn');
+            btn.disabled = true; btn.innerText = "TRANSMITTING...";
 
-        function checkMaritime(x, y) {
-            if (!mapLoaded) return false;
-            // Canvas dışına çıkış kontrolü
-            if (x < 0 || x >= W || y < 0 || y >= H) return true;
-            
-            const pixel = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-            const brightness = pixel[0] + pixel[1] + pixel[2];
-            // SVG haritada okyanus 0 (siyah), karalar 200+ (gri) civarıdır.
-            // 100 eşiği güvenli bir sınırdır.
-            return (brightness < 100); 
-        }
-
-        function updateIntel(e) {
-            const coords = getCanvasCoords(e.clientX, e.clientY);
-            const col = Math.floor(coords.x / SLOT);
-            const row = Math.floor(coords.y / SLOT);
-            const key = `${col},${row}`;
-            const isOcean = checkMaritime(coords.x, coords.y);
-
-            document.getElementById('intel-coords').innerText = `COORD: ${col}, ${row}`;
-            const statusEl = document.getElementById('intel-status');
-            
-            if (isOcean) {
-                statusEl.innerText = "STATUS: INTERNATIONAL WATERS";
-                statusEl.style.color = "#5555ff";
-            } else {
-                const owner = gridData[key];
-                statusEl.innerText = owner ? `OWNER: ${owner.toUpperCase()}` : "STATUS: UNCLAIMED";
-                statusEl.style.color = owner ? "#ff4500" : "#00ff00";
-            }
-            document.getElementById('intel-price').innerText = `VALUATION: ${(gridPrices[key] || 1.00).toFixed(2)} USD`;
-            return { isOcean, key };
-        }
-
-        async function handlePurchase(type) {
-            if (!walletAddress) return alert("First connect your wallet!");
-            const price = (type === 100) ? 100 : (gridPrices[selectedKey] || 1.00);
-            const lamports = Math.floor((price / CURRENT_SOL_USD) * solanaWeb3.LAMPORTS_PER_SOL);
+            const currentData = globalTerritory[selectedKey];
+            const priceUSD = currentData ? currentData.price : 1.00;
+            const lamports = Math.floor((priceUSD / SOL_PRICE) * 1000000000);
 
             try {
-                const connection = new solanaWeb3.Connection(HELIUS_RPC, 'confirmed');
-                const { blockhash } = await connection.getLatestBlockhash('finalized');
+                const conn = new solanaWeb3.Connection(HELIUS_RPC);
+                const { blockhash } = await conn.getLatestBlockhash();
                 const tx = new solanaWeb3.Transaction().add(
-                    solanaWeb3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 2500 }),
                     solanaWeb3.SystemProgram.transfer({
                         fromPubkey: new solanaWeb3.PublicKey(walletAddress),
                         toPubkey: new solanaWeb3.PublicKey(MASTER_WALLET),
-                        lamports: lamports,
+                        lamports: lamports
                     })
                 );
                 tx.recentBlockhash = blockhash;
                 tx.feePayer = new solanaWeb3.PublicKey(walletAddress);
-                const { signature } = await activeProvider.signAndSendTransaction(tx);
-                if(type !== 100) {
-                    gridData[selectedKey] = document.getElementById('nationSelect').value;
-                    gridPrices[selectedKey] = price * 1.25;
-                    localStorage.setItem('border_data_v8', JSON.stringify(gridData));
-                    localStorage.setItem('border_prices_v8', JSON.stringify(gridPrices));
-                    render();
-                }
+                const signed = await activeProvider.signAndSendTransaction(tx);
+                
+                // On-chain onay bekleniyor simülasyonu (DB yazımı)
+                await saveToDB(selectedKey, walletAddress, document.getElementById('nationSelect').value, priceUSD);
                 closePopup();
-            } catch (err) { console.error(err); }
+            } catch (e) { alert("Transaction failed or cancelled."); }
+            btn.disabled = false; btn.innerText = "EXECUTE COMMAND";
         }
 
-        function closePopup() { popup.style.display = 'none'; }
+        // --- RENDER & LOGIC ---
+        function checkMaritime(x, y) {
+            if (!mapLoaded) return false;
+            const p = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+            return (p[0] + p[1] + p[2] < 100);
+        }
 
+        function updateIntel(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (W / rect.width);
+            const y = (e.clientY - rect.top) * (H / rect.height);
+            const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
+            const key = `${col},${row}`;
+            
+            document.getElementById('intel-coords').innerText = `COORD: ${col}, ${row}`;
+            const s = document.getElementById('intel-status');
+            const p = document.getElementById('intel-price');
+
+            if (checkMaritime(x, y)) {
+                s.innerText = "STATUS: INTERNATIONAL WATERS"; s.style.color = "#5555ff";
+                p.innerText = "VALUATION: N/A";
+                return { ocean: true };
+            } else {
+                const data = globalTerritory[key];
+                s.innerText = data ? `OWNER: ${data.owner_address.slice(0,12)}...` : "STATUS: UNCLAIMED";
+                s.style.color = data ? "#ff4500" : "#00ff00";
+                p.innerText = `VALUATION: ${(data ? data.price : 1.00).toFixed(2)} USD`;
+                return { ocean: false, key: key, price: (data ? data.price : 1.00) };
+            }
+        }
+
+        function render() {
+            ctx.clearRect(0, 0, W, H);
+            ctx.drawImage(mapImg, 0, 0, W, H);
+            for (let key in globalTerritory) {
+                const [c, r] = key.split(',').map(Number);
+                const code = globalTerritory[key].nation_code;
+                if (flagCache[code]) ctx.drawImage(flagCache[code], c * SLOT, r * SLOT, SLOT, SLOT);
+            }
+        }
+
+        // --- LISTENERS ---
         canvas.addEventListener('mousemove', e => {
             updateIntel(e);
             if (isDragging) {
                 moved = true;
-                originX += e.clientX - startX;
-                originY += e.clientY - startY;
+                originX += e.clientX - startX; originY += e.clientY - startY;
                 startX = e.clientX; startY = e.clientY;
                 updateTransform();
-                closePopup();
             }
         });
-
-        canvas.addEventListener('mousedown', e => { isDragging = true; moved = false; startX = e.clientX; startY = e.clientY; });
+        canvas.addEventListener('mousedown', e => { isDragging = true; moved = false; startX = e.clientX; startY = e.clientY; closePopup(); });
         canvas.addEventListener('mouseup', e => {
             isDragging = false;
             if (!moved) {
-                const info = updateIntel(e);
-                if (info.isOcean) {
-                    alert("MARITIME LAW: No conquest allowed in international waters!");
-                    return;
-                }
-                selectedKey = info.key;
-                popup.style.left = `${e.clientX + 5}px`;
-                popup.style.top = `${e.clientY + 5}px`;
-                document.getElementById('pop-price').innerText = (gridPrices[selectedKey] || 1.00).toFixed(2) + " USD";
-                popup.style.display = 'block';
+                const res = updateIntel(e);
+                if (res.ocean) return;
+                selectedKey = res.key;
+                document.getElementById('pop-price').innerText = res.price.toFixed(2) + " USD";
+                popup.style.left = e.clientX + "px"; popup.style.top = e.clientY + "px";
+                popup.style.display = "block";
             }
         });
 
-        function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
         window.addEventListener('wheel', e => {
             const old = scale;
-            scale = Math.min(Math.max(0.05, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 40);
+            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 30);
             originX = e.clientX - (e.clientX - originX) * (scale / old);
             originY = e.clientY - (e.clientY - originY) * (scale / old);
             updateTransform();
         }, { passive: false });
 
-        const mapImg = new Image(); 
-        mapImg.crossOrigin = "anonymous";
-        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
-        mapImg.onload = () => { 
-            mapLoaded = true; 
-            render(); 
-            updateTransform(); 
-            document.getElementById('loading').style.display = 'none'; 
-        };
+        function updateTransform() { document.getElementById('canvas-container').style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
+        function closePopup() { popup.style.display = 'none'; }
+        function checkReady() { if(mapLoaded && dbLoaded) document.getElementById('loading').style.display = 'none'; }
 
-        function render() {
-            ctx.clearRect(0, 0, W, H);
-            ctx.drawImage(mapImg, 0, 0, W, H);
-            for (let key in gridData) {
-                let [c, r] = key.split(',').map(Number);
-                const img = flagCache[gridData[key]];
-                if(img) ctx.drawImage(img, c * SLOT, r * SLOT, SLOT, SLOT);
-            }
-        }
+        const mapImg = new Image(); mapImg.crossOrigin = "anonymous";
+        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
+        mapImg.onload = () => { mapLoaded = true; checkReady(); render(); updateTransform(); };
 
         async function init() {
             const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
-            const data = await res.json();
-            data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
-                let opt = document.createElement('option');
+            const countries = await res.json();
+            countries.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
+                const opt = document.createElement('option');
                 opt.value = c.cca2.toLowerCase(); opt.textContent = c.name.common.toUpperCase();
                 document.getElementById('nationSelect').appendChild(opt);
                 const img = new Image(); img.crossOrigin = "anonymous";
                 img.src = `https://flagcdn.com/w80/${opt.value}.png`;
                 img.onload = () => { flagCache[opt.value] = img; render(); };
             });
-            try {
-                const pRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-                const pData = await pRes.json();
-                if(pData.solana.usd) CURRENT_SOL_USD = pData.solana.usd;
-            } catch(e) {}
+            syncFromDB();
+            setInterval(syncFromDB, 30000); // 30 saniyede bir global veriyi tazele
+            const pRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+            const pData = await pRes.json();
+            SOL_PRICE = pData.solana.usd;
         }
         init();
     </script>
