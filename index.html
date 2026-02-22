@@ -1,190 +1,316 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <title>THE LAST BORDER | v12.0.0</title>
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-    <style>
-        body, html { background: #000; color: #0f0; font-family: monospace; margin: 0; overflow: hidden; height: 100%; width: 100%; }
-        canvas { display: block; background: #050505; cursor: crosshair; }
-        .ui { position: fixed; z-index: 1000; padding: 10px; background: rgba(0,0,0,0.9); border: 1px solid #0f0; pointer-events: auto; }
-        #stats { bottom: 10px; right: 10px; border-color: #0f0; }
-        #controls { top: 10px; left: 10px; width: 220px; border-color: #0f0; }
-        #wallet { top: 10px; right: 10px; border-color: #0f0; }
-        #popup { 
-            position: fixed; display: none; background: #000; border: 2px solid #f00; 
-            padding: 15px; z-index: 2000; text-align: center; color: #fff;
-        }
-        button { background: #0f0; color: #000; border: none; padding: 10px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 5px; display: block; }
-        button:active { transform: scale(0.98); }
-        select { background:#000; color:#0f0; border:1px solid #0f0; width:100%; padding:5px; margin-top:5px; }
-    </style>
+<meta charset="UTF-8">
+<title>THE LAST BORDER | v12.1.0</title>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+
+<style>
+body, html { background:#000; color:#0f0; font-family:monospace; margin:0; overflow:hidden; height:100%; width:100%; }
+canvas { display:block; background:#050505; cursor:crosshair; }
+.ui { position:fixed; z-index:1000; padding:10px; background:rgba(0,0,0,0.9); border:1px solid #0f0; }
+#stats { bottom:10px; right:10px; }
+#controls { top:10px; left:10px; width:220px; }
+#wallet { top:10px; right:10px; }
+#popup { position:fixed; display:none; background:#000; border:2px solid #f00; padding:15px; z-index:2000; text-align:center; color:#fff; }
+button { background:#0f0; color:#000; border:none; padding:10px; width:100%; cursor:pointer; font-weight:bold; margin-top:5px; }
+button:active { transform:scale(0.98); }
+select { background:#000; color:#0f0; border:1px solid #0f0; width:100%; padding:5px; margin-top:5px; }
+</style>
 </head>
+
 <body>
 
-    <div id="controls" class="ui">
-        <div style="font-size: 12px; color: #ff4500;">WAR CONSOLE v12.0</div>
-        <select id="nationSelect">
-            <option value="tr">TURKEY</option>
-            <option value="us">USA</option>
-        </select>
-        <button onclick="draw()">FORCE RE-RENDER</button>
-    </div>
+<div id="controls" class="ui">
+<div style="font-size:12px;color:#ff4500;">WAR CONSOLE v12.1</div>
+<select id="nationSelect">
+<option value="tr">TURKEY</option>
+<option value="us">USA</option>
+</select>
+<button id="rerenderBtn">FORCE RE-RENDER</button>
+</div>
 
-    <div id="wallet" class="ui">
-        <div id="addr" style="font-size: 10px; color: #f00; margin-bottom:5px;">STATUS: DISCONNECTED</div>
-        <button id="conBtn" onclick="connect()">CONNECT WALLET</button>
-    </div>
+<div id="wallet" class="ui">
+<div id="addr" style="font-size:10px;color:#f00;margin-bottom:5px;">STATUS: DISCONNECTED</div>
+<button id="conBtn">CONNECT WALLET</button>
+</div>
 
-    <div id="stats" class="ui">
-        <div id="coords">X: 0, Y: 0</div>
-    </div>
+<div id="stats" class="ui">
+<div id="coords">X: 0, Y: 0</div>
+</div>
 
-    <div id="popup">
-        <div id="selectedCoord" style="font-size:10px; margin-bottom:5px;"></div>
-        <div id="price">COST: 1.00 USD</div>
-        <button onclick="buy()">CONQUER</button>
-        <button onclick="closePop()" style="background:#444; color:#fff;">CLOSE</button>
-    </div>
+<div id="popup">
+<div id="selectedCoord" style="font-size:10px;margin-bottom:5px;"></div>
+<div>COST: 1.00 USD</div>
+<button id="buyBtn">CONQUER</button>
+<button id="closeBtn" style="background:#444;color:#fff;">CLOSE</button>
+</div>
 
-    <canvas id="map"></canvas>
+<canvas id="map"></canvas>
 
-    <script>
-        const SB_URL = "https://vwehxkrcsxvgsonhlpms.supabase.co";
-        const SB_KEY = "sb_publishable_Xu7IJwTu2SlVVL8gqi0HEQ_iZu4Xtxk";
-        
-        let supabase, wallet, selectedKey;
-        let territories = {};
-        const canvas = document.getElementById('map');
-        const ctx = canvas.getContext('2d');
-        const SIZE = 25; 
-        
-        let scale = 1, offsetX = 0, offsetY = 0;
+<script>
+const SB_URL = "https://vwehxkrcsxvgsonhlpms.supabase.co";
+const SB_KEY = "YOUR_PUBLIC_ANON_KEY";
 
-        // 1. ANINDA BAŞLATMA
-        window.onload = () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            
-            // Supabase'i korumalı başlat
-            try {
-                supabase = window.supabase.createClient(SB_URL, SB_KEY);
-                loadData();
-            } catch(e) { console.error("Supabase fail"); }
+let supabase = null;
+let wallet = null;
+let selectedKey = null;
+let territories = {};
 
-            setupCountries();
-            draw();
-        };
+const canvas = document.getElementById('map');
+const ctx = canvas.getContext('2d');
+const SIZE = 25;
 
-        async function setupCountries() {
-            try {
-                const r = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
-                const data = await r.json();
-                const sel = document.getElementById('nationSelect');
-                sel.innerHTML = "";
-                data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
-                    const o = document.createElement('option');
-                    o.value = c.cca2.toLowerCase(); o.textContent = c.name.common.toUpperCase();
-                    sel.appendChild(o);
-                });
-            } catch(e) { console.log("Country API offline"); }
-        }
+let scale = 1;
+let offsetX = 0;
+let offsetY = 0;
 
-        async function loadData() {
-            if(!supabase) return;
-            const { data } = await supabase.from('territory').select('*');
-            if(data) {
-                data.forEach(t => territories[t.pixel_key] = t);
-                draw();
-            }
-        }
+// ==========================
+// SAFE INIT
+// ==========================
 
-        function draw() {
-            ctx.fillStyle = "#050505";
-            ctx.fillRect(0, 0, canvas.width, canvas.height);
-            
-            ctx.save();
-            ctx.translate(offsetX, offsetY);
-            ctx.scale(scale, scale);
+window.addEventListener("DOMContentLoaded", () => {
 
-            // Izgara
-            ctx.strokeStyle = "#1a1a1a";
-            ctx.lineWidth = 1;
-            for(let i=0; i<4000; i+=SIZE) {
-                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,4000); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(4000,i); ctx.stroke();
-            }
+    resizeCanvas();
+    draw(); // 🔥 ALWAYS FIRST
 
-            // Dolu pikseller
-            for(let k in territories) {
-                const [x, y] = k.split(',').map(Number);
-                ctx.fillStyle = "#0f0";
-                ctx.shadowBlur = 10; ctx.shadowColor = "#0f0";
-                ctx.fillRect(x*SIZE + 2, y*SIZE + 2, SIZE - 4, SIZE - 4);
-                ctx.shadowBlur = 0;
-            }
+    initSupabaseSafe();  // async
+    setupCountries();    // async
 
-            ctx.restore();
-        }
+    setupInteraction();
+    bindUI();
 
-        // Tıklama
-        canvas.onclick = (e) => {
-            const worldX = (e.clientX - offsetX) / scale;
-            const worldY = (e.clientY - offsetY) / scale;
-            const gx = Math.floor(worldX / SIZE);
-            const gy = Math.floor(worldY / SIZE);
-            
-            selectedKey = `${gx},${gy}`;
-            document.getElementById('selectedCoord').innerText = `COORD: ${gx}, ${gy}`;
-            const p = document.getElementById('popup');
-            p.style.display = 'block';
-            p.style.left = e.clientX + 'px';
-            p.style.top = e.clientY + 'px';
-        };
+});
 
-        // Hareket (Mouse Basılı Tutup Kaydırma)
-        let isDown = false;
-        canvas.onmousedown = (e) => { if(e.button === 0) isDown = true; };
-        window.onmouseup = () => isDown = false;
-        canvas.onmousemove = (e) => {
-            if(isDown) {
-                offsetX += e.movementX;
-                offsetY += e.movementY;
-                draw();
-            }
-            const wx = Math.floor((e.clientX - offsetX) / (scale * SIZE));
-            const wy = Math.floor((e.clientY - offsetY) / (scale * SIZE));
-            document.getElementById('coords').innerText = `X: ${wx}, Y: ${wy}`;
-        };
+function resizeCanvas(){
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+}
+window.addEventListener("resize", () => {
+    resizeCanvas();
+    draw();
+});
 
-        async function connect() {
-            try {
-                const p = window.solana;
-                if(!p) return alert("Please install Phantom Wallet!");
-                const r = await p.connect();
-                wallet = r.publicKey.toString();
-                document.getElementById('addr').innerText = "CONNECTED: " + wallet.slice(0,6) + "...";
-                document.getElementById('addr').style.color = "#0f0";
-                document.getElementById('conBtn').style.display = "none";
-            } catch(e) { alert("Connection refused"); }
-        }
+// ==========================
+// SUPABASE SAFE INIT
+// ==========================
 
-        async function buy() {
-            if(!wallet) return alert("Connect your wallet first!");
-            const nation = document.getElementById('nationSelect').value;
-            const { error } = await supabase.from('territory').upsert({
-                pixel_key: selectedKey,
-                owner_address: wallet,
-                nation_code: nation,
-                price: 1.0
+function initSupabaseSafe(){
+    try {
+        supabase = window.supabase.createClient(SB_URL, SB_KEY);
+        loadData();
+    } catch(e){
+        console.warn("Supabase init failed. Offline mode.");
+        supabase = null;
+    }
+}
+
+async function loadData(){
+    if(!supabase) return;
+
+    try {
+        const { data, error } = await supabase
+            .from('territory')
+            .select('*');
+
+        if(error) throw error;
+
+        territories = {};
+
+        data.forEach(t => {
+            if(!t.pixel_key || !t.pixel_key.includes(',')) return;
+            territories[t.pixel_key] = t;
+        });
+
+        draw();
+
+    } catch(err){
+        console.warn("Supabase fetch failed:", err.message);
+    }
+}
+
+// ==========================
+// COUNTRY API SAFE
+// ==========================
+
+async function setupCountries(){
+    try {
+        const r = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
+        const data = await r.json();
+
+        const sel = document.getElementById('nationSelect');
+        sel.innerHTML = "";
+
+        data.sort((a,b)=>a.name.common.localeCompare(b.name.common))
+            .forEach(c=>{
+                const o = document.createElement('option');
+                o.value = c.cca2.toLowerCase();
+                o.textContent = c.name.common.toUpperCase();
+                sel.appendChild(o);
             });
-            if(error) alert("Database Error: " + error.message);
-            else { alert("TERRITORY CONQUERED!"); closePop(); loadData(); }
+
+    } catch(e){
+        console.warn("Country API offline");
+    }
+}
+
+// ==========================
+// DRAW
+// ==========================
+
+function draw(){
+
+    ctx.fillStyle = "#050505";
+    ctx.fillRect(0,0,canvas.width,canvas.height);
+
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.scale(scale, scale);
+
+    ctx.strokeStyle = "#1a1a1a";
+    ctx.lineWidth = 1;
+
+    for(let i=0;i<4000;i+=SIZE){
+        ctx.beginPath();
+        ctx.moveTo(i,0);
+        ctx.lineTo(i,4000);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(0,i);
+        ctx.lineTo(4000,i);
+        ctx.stroke();
+    }
+
+    for(let k in territories){
+
+        const parts = k.split(',');
+        if(parts.length !== 2) continue;
+
+        const x = Number(parts[0]);
+        const y = Number(parts[1]);
+
+        if(Number.isNaN(x) || Number.isNaN(y)) continue;
+
+        ctx.fillStyle = "#0f0";
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = "#0f0";
+        ctx.fillRect(x*SIZE+2, y*SIZE+2, SIZE-4, SIZE-4);
+        ctx.shadowBlur = 0;
+    }
+
+    ctx.restore();
+}
+
+// ==========================
+// INTERACTION
+// ==========================
+
+function setupInteraction(){
+
+    let dragging = false;
+    let lastX, lastY;
+
+    canvas.addEventListener("mousedown", e=>{
+        if(e.button!==0) return;
+        dragging=true;
+        lastX=e.clientX;
+        lastY=e.clientY;
+    });
+
+    window.addEventListener("mouseup", ()=>dragging=false);
+
+    canvas.addEventListener("mousemove", e=>{
+        if(dragging){
+            offsetX += e.clientX-lastX;
+            offsetY += e.clientY-lastY;
+            lastX=e.clientX;
+            lastY=e.clientY;
+            draw();
         }
 
-        function closePop() { document.getElementById('popup').style.display = 'none'; }
-        window.onresize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; draw(); };
-    </script>
+        const wx=Math.floor((e.clientX-offsetX)/(scale*SIZE));
+        const wy=Math.floor((e.clientY-offsetY)/(scale*SIZE));
+        document.getElementById('coords').innerText=`X: ${wx}, Y: ${wy}`;
+    });
+
+    canvas.addEventListener("wheel", e=>{
+        e.preventDefault();
+        const zoom = e.deltaY<0 ? 1.1 : 0.9;
+        scale *= zoom;
+        draw();
+    });
+
+    canvas.addEventListener("click", e=>{
+        const gx=Math.floor((e.clientX-offsetX)/(scale*SIZE));
+        const gy=Math.floor((e.clientY-offsetY)/(scale*SIZE));
+
+        selectedKey=`${gx},${gy}`;
+        document.getElementById('selectedCoord').innerText=`COORD: ${gx}, ${gy}`;
+
+        const p=document.getElementById('popup');
+        p.style.display='block';
+        p.style.left=e.clientX+'px';
+        p.style.top=e.clientY+'px';
+    });
+}
+
+// ==========================
+// WALLET
+// ==========================
+
+function bindUI(){
+
+    document.getElementById("rerenderBtn").onclick=draw;
+
+    document.getElementById("conBtn").onclick=async ()=>{
+        try{
+            const p=window.solana;
+            if(!p) return alert("Install Phantom Wallet");
+            const r=await p.connect();
+            wallet=r.publicKey.toString();
+            document.getElementById('addr').innerText="CONNECTED: "+wallet.slice(0,6)+"...";
+            document.getElementById('addr').style.color="#0f0";
+            document.getElementById('conBtn').style.display="none";
+        }catch(e){
+            alert("Connection refused");
+        }
+    };
+
+    document.getElementById("buyBtn").onclick=buy;
+    document.getElementById("closeBtn").onclick=()=>document.getElementById('popup').style.display='none';
+}
+
+async function buy(){
+
+    if(!wallet) return alert("Connect wallet first");
+    if(!supabase) return alert("Database offline");
+
+    try{
+        const nation=document.getElementById('nationSelect').value;
+
+        const { error } = await supabase
+            .from('territory')
+            .upsert({
+                pixel_key:selectedKey,
+                owner_address:wallet,
+                nation_code:nation,
+                price:1.0
+            });
+
+        if(error) throw error;
+
+        alert("TERRITORY CONQUERED");
+        document.getElementById('popup').style.display='none';
+        loadData();
+
+    }catch(err){
+        alert("Database Error: "+err.message);
+    }
+}
+
+</script>
 </body>
 </html>
