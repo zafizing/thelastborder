@@ -2,67 +2,45 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v8.4.6 ULTRA SHARP</title>
+    <title>THE LAST BORDER | v8.4.7 STABLE</title>
     <style>
-        body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        body, html { background-color: #020205; color: #00ff00; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
-        #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        
+        #canvas-container { position: absolute; transform-origin: 0 0; }
         canvas { 
-            background-color: #000; 
-            /* Keskinlik için en kritik CSS ayarları */
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: crisp-edges;
-            image-rendering: pixelated;
+            background-color: #050505; 
+            image-rendering: pixelated; /* Net pikseller için şart */
             cursor: crosshair; 
         }
-
-        .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.9); padding: 12px; border: 1px solid #ff4500; backdrop-filter: blur(5px); border-radius: 2px; }
-        #pixel-intel { bottom: 20px; right: 20px; width: 220px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; }
-        #buy-popup { position: absolute; z-index: 1000; display: none; background: #000; border: 2px solid #ff4500; padding: 10px; width: 160px; box-shadow: 0 0 15px rgba(255, 69, 0, 0.4); }
+        .panel { position: fixed; z-index: 100; background: rgba(0, 10, 0, 0.9); padding: 12px; border: 1px solid #00ff00; border-radius: 2px; }
         #ui-overlay { top: 20px; left: 20px; width: 260px; }
-        #wallet-panel { top: 20px; right: 20px; width: 200px; border-color: #00ff00; }
-        
-        input, select { background: #050505; color: #00ff00; border: 1px solid #00ff00; padding: 6px; width: 100%; box-sizing: border-box; margin-top: 5px; font-size: 12px; }
+        #pixel-intel { bottom: 20px; right: 20px; width: 220px; font-size: 11px; pointer-events: none; }
+        #buy-popup { position: absolute; z-index: 1000; display: none; background: #000; border: 2px solid #ff4500; padding: 10px; width: 160px; }
+        input, select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 6px; width: 100%; margin-top: 5px; font-family: inherit; }
         button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-weight: bold; border: none; text-transform: uppercase; }
-        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff4500; }
+        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; justify-content: center; align-items: center; color: #00ff00; }
     </style>
 </head>
 <body>
-    <div id="loading">
-        <div style="letter-spacing: 5px;">ESTABLISHING UPLINK...</div>
-        <div id="loading-status" style="font-size: 10px; margin-top: 10px; color: #444;">SYNCING GEODATA</div>
-    </div>
+    <div id="loading">INITIALIZING SATELLITE LINK...</div>
     
     <div id="war-room">
         <div id="buy-popup">
-            <div id="pop-coords" style="color:#666; font-size:9px; margin-bottom:4px;">0,0</div>
-            <div style="color:#ff4500; font-weight:bold; font-size:11px; border-bottom:1px solid #333; padding-bottom:4px;">TARGET ACQUIRED</div>
-            <div id="pop-price" style="color:#00ff00; font-size:14px; margin: 10px 0;">1.00 USD</div>
-            <button style="background: #ff4500; color: #fff;" onclick="handlePurchase(1)">CONQUER</button>
-            <button style="background: #222; color: #666; font-size:9px;" onclick="closePopup()">CANCEL</button>
+            <div id="pop-coords" style="font-size:10px; color:#888;">0,0</div>
+            <div style="color:#ff4500; font-weight:bold;">ACQUIRE PIXEL?</div>
+            <button style="background: #ff4500; color: #fff;" onclick="handlePurchase()">CONFIRM</button>
+            <button style="background: #222; color: #fff; font-size:9px;" onclick="closePopup()">ABORT</button>
         </div>
 
         <div id="ui-overlay" class="panel">
-            <div style="color: #ff4500; font-size: 12px; font-weight: bold; margin-bottom: 8px;">SECTOR CONTROL</div>
+            <div style="font-weight:bold; margin-bottom:5px;">COMMAND CENTER</div>
             <select id="nationSelect"></select>
-            <div style="margin-top:10px; border-top:1px solid #222; padding-top:10px;">
-                <input type="text" id="customName" placeholder="NATION TAG">
-                <input type="text" id="customFlag" placeholder="FLAG ASSET URL">
-                <button style="background: #00ff00; color: #000;" onclick="handlePurchase(100)">ESTABLISH STATE</button>
-            </div>
-        </div>
-
-        <div id="wallet-panel" class="panel">
-            <div id="wallet-status" style="font-size: 10px; color: #ffff00;">SYSTEM: BYPASSED (FREE PAINT)</div>
-            <button id="connectBtn" style="background: #222; color: #444; margin-top:5px;" disabled>LOCKED</button>
+            <button style="background: #00ff00; color: #000;" onclick="alert('Local Mode Active')">FREE PAINT ENABLED</button>
         </div>
 
         <div id="pixel-intel" class="panel">
-            <div id="intel-coords">LN: 000 | LT: 000</div>
-            <div id="intel-status">STATUS: UNKNOWN</div>
-            <div id="intel-price">VAL: 1.00 USD</div>
+            <div id="intel-coords">COORD: 0, 0</div>
+            <div id="intel-status">STATUS: READY</div>
         </div>
 
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
@@ -70,32 +48,31 @@
 
     <script>
         const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d', { alpha: false }); // Performans için alpha false
+        const ctx = canvas.getContext('2d', { alpha: false });
         const container = document.getElementById('canvas-container');
         const popup = document.getElementById('buy-popup');
         
-        // Netlik için ızgara boyutunu ve canvası ayarla
-        const W = 4000, H = 2000, SLOT = 10; // Tam sayı (10) kullanarak blur'u engelliyoruz
+        // 4000x2000 harita için SLOT 10 idealdir (400x200 grid)
+        const W = 4000, H = 2000, SLOT = 10;
         canvas.width = W; canvas.height = H;
 
-        let gridData = JSON.parse(localStorage.getItem('border_data_v8.6') || '{}');
+        let gridData = JSON.parse(localStorage.getItem('border_local_v8') || '{}');
         const flagCache = {};
         let selectedKey = null;
         let mapLoaded = false;
         let needsRender = true;
 
-        let scale = 0.4, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
-        let isDragging = false, startX, startY, moveDist = 0;
+        let scale = 0.3, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
+        let isDragging = false, startX, startY, hasMoved = false;
 
-        // --- Harita Yükleme (High-Res) ---
+        // Harita: Netlik için düz renkli yüksek çözünürlük kullanıyoruz
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
-        // Çok daha net ve keskin bir dünya haritası
-        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_blank_without_borders.svg';
+        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/b/bb/World_map_blank_without_borders.svg';
 
         mapImg.onload = () => { mapLoaded = true; finishLoading(); };
         mapImg.onerror = () => finishLoading();
-        setTimeout(() => { if(!mapLoaded) finishLoading(); }, 3500);
+        setTimeout(() => finishLoading(), 4000); // 4 sn sonra zorla aç
 
         function finishLoading() {
             document.getElementById('loading').style.display = 'none';
@@ -103,51 +80,53 @@
             requestAnimationFrame(renderLoop);
         }
 
-        // --- Koordinat ve Deniz Kontrolü ---
-        function getCoords(e) {
+        function getCanvasPos(e) {
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) * (W / rect.width);
             const y = (e.clientY - rect.top) * (H / rect.height);
             return { x, y, col: Math.floor(x/SLOT), row: Math.floor(y/SLOT) };
         }
 
-        function isSea(x, y) {
+        // Tıklanan yerin deniz olup olmadığını kontrol et
+        function isOcean(x, y) {
             if (!mapLoaded) return false;
             const p = ctx.getImageData(x, y, 1, 1).data;
-            return (p[0] + p[1] + p[2] < 50); // Siyah bölgeler denizdir
+            return (p[0] + p[1] + p[2] < 30); // Siyaha yakınsa denizdir
         }
 
-        // --- Boyama Fonksiyonu (Geçici İzinli) ---
-        function handlePurchase(type) {
+        function handlePurchase() {
             if (!selectedKey) return;
             gridData[selectedKey] = document.getElementById('nationSelect').value;
-            localStorage.setItem('border_data_v8.6', JSON.stringify(gridData));
+            localStorage.setItem('border_local_v8', JSON.stringify(gridData));
             needsRender = true;
             closePopup();
         }
 
         function closePopup() { popup.style.display = 'none'; }
 
-        // --- Render Döngüsü (Ultra Net) ---
         function renderLoop() {
             if (needsRender) {
                 ctx.imageSmoothingEnabled = false;
-                ctx.fillStyle = "#000";
+                ctx.fillStyle = "#000"; // Deniz rengi (Siyah)
                 ctx.fillRect(0,0,W,H);
 
                 if (mapLoaded) ctx.drawImage(mapImg, 0, 0, W, H);
 
-                // Bayraklar
+                // Bayrakları çiz
                 for (let key in gridData) {
                     let [c, r] = key.split(',').map(Number);
                     const img = flagCache[gridData[key]];
-                    if (img && img.complete) ctx.drawImage(img, c*SLOT, r*SLOT, SLOT, SLOT);
-                    else { ctx.fillStyle = "#ff4500"; ctx.fillRect(c*SLOT, r*SLOT, SLOT, SLOT); }
+                    if (img && img.complete) {
+                        ctx.drawImage(img, c*SLOT, r*SLOT, SLOT, SLOT);
+                    } else {
+                        ctx.fillStyle = "#00ff00";
+                        ctx.fillRect(c*SLOT, r*SLOT, SLOT, SLOT);
+                    }
                 }
 
-                // Dinamik Izgara (Askeri Scanline Etkisi)
+                // Izgara (Her zaman hafifçe görünür, yaklaştıkça netleşir)
                 ctx.beginPath();
-                ctx.strokeStyle = `rgba(0, 255, 0, ${Math.min(0.2, scale/4)})`;
+                ctx.strokeStyle = `rgba(0, 255, 0, ${Math.max(0.05, Math.min(0.2, scale/5))})`;
                 ctx.lineWidth = 1 / scale;
                 for(let x=0; x<=W; x+=SLOT) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
                 for(let y=0; y<=H; y+=SLOT) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
@@ -158,55 +137,57 @@
             requestAnimationFrame(renderLoop);
         }
 
-        // --- Mouse / Zoom Kontrolleri ---
-        window.addEventListener('wheel', e => {
+        // --- Kontroller ---
+        window.onwheel = e => {
+            e.preventDefault();
             const old = scale;
-            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 25);
+            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 30);
             originX = e.clientX - (e.clientX - originX) * (scale / old);
             originY = e.clientY - (e.clientY - originY) * (scale / old);
             updateTransform();
-        }, { passive: false });
+        };
 
-        canvas.addEventListener('mousedown', e => { isDragging = true; startX = e.clientX; startY = e.clientY; moveDist = 0; });
-        window.addEventListener('mousemove', e => {
-            const c = getCoords(e);
-            document.getElementById('intel-coords').innerText = `LN: ${c.col.toString().padStart(3,'0')} | LT: ${c.row.toString().padStart(3,'0')}`;
-            
+        canvas.onmousedown = e => { isDragging = true; startX = e.clientX; startY = e.clientY; hasMoved = false; };
+        window.onmousemove = e => {
+            const p = getCanvasPos(e);
+            document.getElementById('intel-coords').innerText = `COORD: ${p.col}, ${p.row}`;
             if (isDragging) {
                 originX += e.clientX - startX;
                 originY += e.clientY - startY;
-                moveDist += Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY);
                 startX = e.clientX; startY = e.clientY;
+                hasMoved = true;
                 updateTransform();
             }
-        });
-
-        window.addEventListener('mouseup', e => {
+        };
+        window.onmouseup = () => {
+            if (isDragging && !hasMoved) { /* Tıklama işlemi aşağıda mouseup içinde değil, click ile çözülebilir ama stabilite için burada bırakıyorum */ }
             isDragging = false;
-            if (moveDist < 5) {
-                const c = getCoords(e);
-                if (isSea(c.x, c.y)) return;
-                selectedKey = `${c.col},${c.row}`;
-                popup.style.display = 'block';
-                popup.style.left = e.clientX + 'px';
-                popup.style.top = e.clientY + 'px';
-                document.getElementById('pop-coords').innerText = `${c.col}, ${c.row}`;
-            }
-        });
+        };
+
+        canvas.onclick = e => {
+            if (hasMoved) return;
+            const p = getCanvasPos(e);
+            if (isOcean(p.x, p.y)) return;
+            selectedKey = `${p.col},${p.row}`;
+            popup.style.display = 'block';
+            popup.style.left = e.clientX + 'px';
+            popup.style.top = e.clientY + 'px';
+            document.getElementById('pop-coords').innerText = selectedKey;
+        };
 
         function updateTransform() { 
             container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; 
             needsRender = true;
         }
 
-        // --- Başlangıç ---
         async function init() {
             const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
             const data = await res.json();
             const sel = document.getElementById('nationSelect');
             data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
                 let opt = document.createElement('option');
-                opt.value = c.cca2.toLowerCase(); opt.textContent = c.name.common.toUpperCase();
+                opt.value = c.cca2.toLowerCase(); 
+                opt.textContent = c.name.common.toUpperCase();
                 sel.appendChild(opt);
                 const img = new Image(); img.crossOrigin = "anonymous";
                 img.src = `https://flagcdn.com/w80/${opt.value}.png`;
@@ -214,6 +195,7 @@
             });
         }
         init();
+        window.onresize = updateTransform;
     </script>
 </body>
 </html>
