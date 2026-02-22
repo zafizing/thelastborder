@@ -2,190 +2,163 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v10.0.0</title>
+    <title>THE LAST BORDER | v11.0.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
-        body, html { background-color: #050505; color: #00ff00; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
-        #canvas-container { position: absolute; transform-origin: 0 0; }
-        canvas { background-color: #0a0a0f; image-rendering: pixelated; cursor: crosshair; border: 1px solid #333; }
-        .panel { position: fixed; z-index: 100; background: rgba(0, 0, 0, 0.9); padding: 12px; border: 1px solid #ff4500; border-radius: 2px; box-shadow: 0 0 10px rgba(255,69,0,0.2); }
-        #pixel-intel { bottom: 20px; right: 20px; width: 220px; border-color: #00ff00; font-size: 11px; }
-        #buy-popup { position: absolute; z-index: 1000; display: none; background: #000; border: 2px solid #ff4500; padding: 15px; width: 180px; text-align: center; }
-        #wallet-panel { top: 20px; right: 20px; width: 200px; border-color: #00ff00; }
-        #ui-overlay { top: 20px; left: 20px; width: 200px; }
-        select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 5px; width: 100%; font-family: inherit; margin-bottom: 5px; }
-        button { width: 100%; padding: 8px; cursor: pointer; font-family: inherit; font-weight: bold; background: #ff4500; color: #000; border: none; }
-        button:hover { background: #ff6a00; }
-        #loading { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff4500; }
+        body, html { background: #000; color: #0f0; font-family: monospace; margin: 0; overflow: hidden; }
+        canvas { display: block; background: #050505; cursor: crosshair; }
+        .ui { position: fixed; z-index: 10; padding: 10px; background: rgba(0,0,0,0.8); border: 1px solid #0f0; }
+        #stats { bottom: 10px; right: 10px; }
+        #controls { top: 10px; left: 10px; width: 200px; }
+        #wallet { top: 10px; right: 10px; }
+        #popup { 
+            position: fixed; display: none; background: #000; border: 2px solid #f00; 
+            padding: 15px; z-index: 100; text-align: center; color: #fff;
+        }
+        button { background: #0f0; color: #000; border: none; padding: 8px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 5px; }
     </style>
 </head>
 <body>
-    <div id="loading" onclick="this.style.display='none'">
-        <div style="font-size: 20px; letter-spacing: 5px;">INITIALIZING WAR MAP...</div>
-        <div style="font-size: 10px; margin-top: 10px; color: #444;">CLICK ANYWHERE TO BYPASS</div>
+
+    <div id="controls" class="ui">
+        <div style="font-size: 12px; margin-bottom: 5px;">WAR CONSOLE v11</div>
+        <select id="nationSelect" style="width:100%; background:#000; color:#0f0; border:1px solid #0f0;"></select>
     </div>
-    
-    <div id="war-room">
-        <div id="buy-popup">
-            <div id="pop-price" style="font-size: 18px; margin-bottom: 10px;">1.00 USD</div>
-            <button id="execBtn" onclick="handlePurchase()">CONQUER PIXEL</button>
-            <button onclick="closePopup()" style="background:#333; color:#eee; margin-top:5px;">CANCEL</button>
-        </div>
 
-        <div id="ui-overlay" class="panel">
-            <div style="font-size: 10px; margin-bottom: 5px;">SELECT NATION:</div>
-            <select id="nationSelect"></select>
-        </div>
-
-        <div id="wallet-panel" class="panel">
-            <div id="wallet-status" style="font-size: 10px; margin-bottom: 5px; color: #ff4500;">WALLET: DISCONNECTED</div>
-            <button id="connectBtn" onclick="connectWallet()" style="background:#00ff00;">CONNECT SOLANA</button>
-        </div>
-
-        <div id="pixel-intel" class="panel">
-            <div id="intel-coords">X: 0, Y: 0</div>
-            <div id="intel-status" style="color:#ff4500;">STATUS: SCANNING...</div>
-        </div>
-
-        <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
+    <div id="wallet" class="ui">
+        <div id="addr" style="font-size: 10px; color: #f00;">OFFLINE</div>
+        <button onclick="connect()">CONNECT</button>
     </div>
+
+    <div id="stats" class="ui">
+        <div id="coords">X: 0, Y: 0</div>
+    </div>
+
+    <div id="popup">
+        <div id="price">1.00 USD</div>
+        <button onclick="buy()">CONQUER</button>
+        <button onclick="this.parentElement.style.display='none'" style="background:#444; color:#fff;">X</button>
+    </div>
+
+    <canvas id="map"></canvas>
 
     <script>
         const SB_URL = "https://vwehxkrcsxvgsonhlpms.supabase.co";
         const SB_KEY = "sb_publishable_Xu7IJwTu2SlVVL8gqi0HEQ_iZu4Xtxk";
-        const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
-
-        let supabase, walletAddress, activeProvider, selectedKey;
-        let globalTerritory = {}, flagCache = {};
-        let scale = 0.8, originX = 50, originY = 50;
-        let isDragging = false, moved = false, startX, startY;
-
-        const canvas = document.getElementById('war-canvas');
+        
+        let supabase, wallet, selectedKey;
+        let territories = {};
+        const canvas = document.getElementById('map');
         const ctx = canvas.getContext('2d');
-        const W = 3000, H = 1500, SLOT = 10; // Daha stabil boyutlar
-        canvas.width = W; canvas.height = H;
+        const SIZE = 20; // Kare boyutu
+        
+        // Zoom & Pan
+        let scale = 1, offsetX = 0, offsetY = 0;
 
         async function init() {
-            try {
-                supabase = window.supabase.createClient(SB_URL, SB_KEY);
-                syncFromDB();
-                
-                const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
-                const countries = await res.json();
-                countries.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
-                    const opt = document.createElement('option');
-                    opt.value = c.cca2.toLowerCase(); opt.textContent = c.name.common.toUpperCase();
-                    document.getElementById('nationSelect').appendChild(opt);
-                    const img = new Image(); img.crossOrigin = "anonymous";
-                    img.src = `https://flagcdn.com/w80/${opt.value}.png`;
-                    img.onload = () => { flagCache[opt.value] = img; render(); };
-                });
-            } catch (e) { console.error(e); }
-            setTimeout(() => { document.getElementById('loading').style.display = 'none'; }, 2000);
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            supabase = window.supabase.createClient(SB_URL, SB_KEY);
+            loadData();
+
+            // Ülkeleri çek
+            const r = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
+            const data = await r.json();
+            data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
+                const o = document.createElement('option');
+                o.value = c.cca2.toLowerCase(); o.textContent = c.name.common.toUpperCase();
+                document.getElementById('nationSelect').appendChild(o);
+            });
+
+            draw();
         }
 
-        async function syncFromDB() {
+        async function loadData() {
             const { data } = await supabase.from('territory').select('*');
-            if (data) {
-                globalTerritory = {};
-                data.forEach(item => { globalTerritory[item.pixel_key] = item; });
-                render();
+            if(data) {
+                data.forEach(t => territories[t.pixel_key] = t);
+                draw();
             }
         }
 
-        const mapImg = new Image();
-        mapImg.crossOrigin = "anonymous";
-        // Harita linkini daha güvenilir bir kaynakla değiştirdim
-        mapImg.src = 'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/img/backgroundimg/world.png';
-        mapImg.onload = () => { render(); };
-        mapImg.onerror = () => { 
-            console.log("Map failed, using fallback grid");
-            render(); 
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(scale, scale);
+
+            // Izgara çiz
+            ctx.strokeStyle = "#111";
+            for(let i=0; i<2000; i+=SIZE) {
+                ctx.beginPath(); ctx.moveTo(i,0); ctx.lineTo(i,2000); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(0,i); ctx.lineTo(2000,i); ctx.stroke();
+            }
+
+            // Alınan yerleri çiz
+            for(let k in territories) {
+                const [x, y] = k.split(',').map(Number);
+                ctx.fillStyle = "#f00";
+                ctx.fillRect(x*SIZE, y*SIZE, SIZE, SIZE);
+            }
+
+            ctx.restore();
+        }
+
+        // Mouse İşlemleri
+        canvas.onmousedown = (e) => {
+            if(e.button === 0) { // Sol tık: Seçim
+                const rect = canvas.getBoundingClientRect();
+                const worldX = (e.clientX - offsetX) / scale;
+                const worldY = (e.clientY - offsetY) / scale;
+                const gx = Math.floor(worldX / SIZE);
+                const gy = Math.floor(worldY / SIZE);
+                
+                selectedKey = `${gx},${gy}`;
+                const p = document.getElementById('popup');
+                p.style.display = 'block';
+                p.style.left = e.clientX + 'px';
+                p.style.top = e.clientY + 'px';
+            }
         };
 
-        function render() {
-            ctx.fillStyle = "#0a0a0f";
-            ctx.fillRect(0, 0, W, H);
-            
-            // Harita varsa çiz, yoksa sadece ızgara bırak
-            if (mapImg.complete && mapImg.naturalWidth !== 0) {
-                ctx.drawImage(mapImg, 0, 0, W, H);
+        // Hareket (Pan)
+        canvas.onmousemove = (e) => {
+            if(e.buttons === 2) { // Sağ tık: Kaydır
+                offsetX += e.movementX;
+                offsetY += e.movementY;
+                draw();
             }
+            const wx = Math.floor((e.clientX - offsetX) / (scale * SIZE));
+            const wy = Math.floor((e.clientY - offsetY) / (scale * SIZE));
+            document.getElementById('coords').innerText = `X: ${wx}, Y: ${wy}`;
+        };
 
-            // Izgara (Grid) çizimi
-            ctx.strokeStyle = "rgba(0, 255, 0, 0.05)";
-            ctx.beginPath();
-            for(let x=0; x<W; x+=SLOT*5) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
-            for(let y=0; y<H; y+=SLOT*5) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
-            ctx.stroke();
+        window.oncontextmenu = (e) => e.preventDefault(); // Sağ tık menüsünü kapat
 
-            // Sahiplenilmiş toprakları çiz
-            for (let key in globalTerritory) {
-                const [c, r] = key.split(',').map(Number);
-                const code = globalTerritory[key].nation_code;
-                if (flagCache[code]) {
-                    ctx.drawImage(flagCache[code], c * SLOT, r * SLOT, SLOT, SLOT);
-                } else {
-                    ctx.fillStyle = "rgba(255, 69, 0, 0.5)";
-                    ctx.fillRect(c * SLOT, r * SLOT, SLOT, SLOT);
-                }
-            }
+        async function connect() {
+            const p = window.solana;
+            if(!p) return alert("Phantom yükle");
+            const r = await p.connect();
+            wallet = r.publicKey.toString();
+            document.getElementById('addr').innerText = wallet.slice(0,8) + "...";
+            document.getElementById('addr').style.color = "#0f0";
         }
 
-        function updateTransform() {
-            document.getElementById('canvas-container').style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+        async function buy() {
+            if(!wallet) return alert("Cüzdan bağla");
+            const nation = document.getElementById('nationSelect').value;
+            const { error } = await supabase.from('territory').upsert({
+                pixel_key: selectedKey,
+                owner_address: wallet,
+                nation_code: nation,
+                price: 1.0
+            });
+            if(error) alert(error.message);
+            else { alert("BAŞARILI!"); loadData(); }
         }
 
-        canvas.addEventListener('mousedown', e => { isDragging = true; moved = false; startX = e.clientX; startY = e.clientY; closePopup(); });
-        canvas.addEventListener('mousemove', e => {
-            const rect = canvas.getBoundingClientRect();
-            const x = (e.clientX - rect.left) * (W / rect.width);
-            const y = (e.clientY - rect.top) * (H / rect.height);
-            document.getElementById('intel-coords').innerText = `X: ${Math.floor(x/SLOT)}, Y: ${Math.floor(y/SLOT)}`;
-            
-            if (isDragging) {
-                originX += e.clientX - startX; originY += e.clientY - startY;
-                startX = e.clientX; startY = e.clientY;
-                moved = true; updateTransform();
-            }
-        });
-        
-        canvas.addEventListener('mouseup', e => {
-            isDragging = false;
-            if (!moved) {
-                const rect = canvas.getBoundingClientRect();
-                const x = (e.clientX - rect.left) * (W / rect.width);
-                const y = (e.clientY - rect.top) * (H / rect.height);
-                selectedKey = `${Math.floor(x/SLOT)},${Math.floor(y/SLOT)}`;
-                const pop = document.getElementById('buy-popup');
-                pop.style.left = e.clientX + "px"; pop.style.top = e.clientY + "px";
-                pop.style.display = "block";
-            }
-        });
-
-        window.addEventListener('wheel', e => {
-            const old = scale;
-            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 20);
-            originX = e.clientX - (e.clientX - originX) * (scale / old);
-            originY = e.clientY - (e.clientY - originY) * (scale / old);
-            updateTransform();
-        }, { passive: false });
-
-        async function connectWallet() {
-            const provider = window.solana || window.solflare;
-            if(!provider) return alert("Install Phantom!");
-            const resp = await provider.connect();
-            walletAddress = (resp.publicKey || provider.publicKey).toString();
-            activeProvider = provider;
-            document.getElementById('wallet-status').innerText = "CONNECTED: " + walletAddress.slice(0,4) + "..";
-            document.getElementById('connectBtn').style.display = "none";
-        }
-
-        function closePopup() { document.getElementById('buy-popup').style.display = 'none'; }
-        
-        updateTransform();
         init();
     </script>
 </body>
