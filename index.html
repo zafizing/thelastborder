@@ -2,12 +2,18 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v8.4.2 PRECISION</title>
+    <title>THE LAST BORDER | v8.4.4 CRYSTAL GRID</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
+        /* Harita ve Bayrak Netliği İçin Kritik Ayar */
+        canvas { 
+            background-color: #0d0d0d; 
+            image-rendering: crisp-edges;
+            image-rendering: pixelated; 
+            cursor: crosshair; 
+        }
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); border-radius: 4px; }
         
         #pixel-intel { bottom: 20px; right: 20px; width: 250px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; box-shadow: 0 0 10px rgba(0,255,0,0.2); }
@@ -28,7 +34,7 @@
 <body>
     <div id="loading">
         <div>CALIBRATING SAT-LINK...</div>
-        <div style="font-size: 10px; margin-top: 10px; color: #666;">LOADING MAP DATA...</div>
+        <div id="loading-status" style="font-size: 10px; margin-top: 10px; color: #666;">LOADING MAP DATA...</div>
     </div>
     
     <div id="war-room">
@@ -72,7 +78,7 @@
         const HELIUS_KEY = "ec1aa17e-f949-4ab9-a2b2-0a16a3af2cb2"; 
         const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`;
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
-        let CURRENT_SOL_USD = 135; // Default Solana Price
+        let CURRENT_SOL_USD = 135;
 
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -88,8 +94,9 @@
         let activeProvider = null;
         let selectedKey = null;
         let mapLoaded = false;
+        let needsRender = true; 
 
-        let startX, startY, isDragging = false, moved = false;
+        let startX, startY, isDragging = false, dragThreshold = 0;
         let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
 
         async function connectWallet() {
@@ -105,10 +112,8 @@
             } catch (err) { console.error(err); }
         }
 
-        // --- DİNAMİK INTEL & DENİZ KONTROLÜ (FIXED) ---
         function getCanvasCoords(clientX, clientY) {
             const rect = canvas.getBoundingClientRect();
-            // Client koordinatlarını canvas üzerindeki 4000x2000 ölçeğine tam eşler
             const x = (clientX - rect.left) * (canvas.width / rect.width);
             const y = (clientY - rect.top) * (canvas.height / rect.height);
             return { x, y };
@@ -116,14 +121,9 @@
 
         function checkMaritime(x, y) {
             if (!mapLoaded) return false;
-            // Canvas dışına çıkış kontrolü
             if (x < 0 || x >= W || y < 0 || y >= H) return true;
-            
             const pixel = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-            const brightness = pixel[0] + pixel[1] + pixel[2];
-            // SVG haritada okyanus 0 (siyah), karalar 200+ (gri) civarıdır.
-            // 100 eşiği güvenli bir sınırdır.
-            return (brightness < 100); 
+            return (pixel[0] + pixel[1] + pixel[2] < 100); 
         }
 
         function updateIntel(e) {
@@ -167,12 +167,13 @@
                 tx.recentBlockhash = blockhash;
                 tx.feePayer = new solanaWeb3.PublicKey(walletAddress);
                 const { signature } = await activeProvider.signAndSendTransaction(tx);
+                
                 if(type !== 100) {
                     gridData[selectedKey] = document.getElementById('nationSelect').value;
                     gridPrices[selectedKey] = price * 1.25;
                     localStorage.setItem('border_data_v8', JSON.stringify(gridData));
                     localStorage.setItem('border_prices_v8', JSON.stringify(gridPrices));
-                    render();
+                    needsRender = true;
                 }
                 closePopup();
             } catch (err) { console.error(err); }
@@ -183,19 +184,27 @@
         canvas.addEventListener('mousemove', e => {
             updateIntel(e);
             if (isDragging) {
-                moved = true;
-                originX += e.clientX - startX;
-                originY += e.clientY - startY;
+                const dx = e.clientX - startX;
+                const dy = e.clientY - startY;
+                dragThreshold += Math.abs(dx) + Math.abs(dy);
+                originX += dx;
+                originY += dy;
                 startX = e.clientX; startY = e.clientY;
                 updateTransform();
                 closePopup();
             }
         });
 
-        canvas.addEventListener('mousedown', e => { isDragging = true; moved = false; startX = e.clientX; startY = e.clientY; });
+        canvas.addEventListener('mousedown', e => { 
+            isDragging = true; 
+            dragThreshold = 0; 
+            startX = e.clientX; 
+            startY = e.clientY; 
+        });
+
         canvas.addEventListener('mouseup', e => {
             isDragging = false;
-            if (!moved) {
+            if (dragThreshold < 5) {
                 const info = updateIntel(e);
                 if (info.isOcean) {
                     alert("MARITIME LAW: No conquest allowed in international waters!");
@@ -209,53 +218,106 @@
             }
         });
 
-        function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
+        function updateTransform() { 
+            container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; 
+            needsRender = true; // Zoom değiştiğinde ızgara netliği için render tazele
+        }
+
         window.addEventListener('wheel', e => {
             const old = scale;
             scale = Math.min(Math.max(0.05, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 40);
             originX = e.clientX - (e.clientX - originX) * (scale / old);
             originY = e.clientY - (e.clientY - originY) * (scale / old);
             updateTransform();
+            closePopup();
         }, { passive: false });
 
         const mapImg = new Image(); 
         mapImg.crossOrigin = "anonymous";
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
-        mapImg.onload = () => { 
-            mapLoaded = true; 
-            render(); 
-            updateTransform(); 
-            document.getElementById('loading').style.display = 'none'; 
-        };
+        
+        const loadTimeout = setTimeout(() => { if (!mapLoaded) finishLoading(); }, 5000);
+        mapImg.onload = () => { mapLoaded = true; finishLoading(); };
+        mapImg.onerror = () => finishLoading();
 
-        function render() {
-            ctx.clearRect(0, 0, W, H);
-            ctx.drawImage(mapImg, 0, 0, W, H);
-            for (let key in gridData) {
-                let [c, r] = key.split(',').map(Number);
-                const img = flagCache[gridData[key]];
-                if(img) ctx.drawImage(img, c * SLOT, r * SLOT, SLOT, SLOT);
+        function finishLoading() {
+            clearTimeout(loadTimeout);
+            needsRender = true;
+            updateTransform();
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        // --- GELİŞMİŞ RENDER (GRID & CRYSTAL NETLİK) ---
+        function renderLoop() {
+            if (needsRender) {
+                // Netlik ayarları
+                ctx.imageSmoothingEnabled = false;
+                ctx.clearRect(0, 0, W, H);
+
+                if (mapLoaded) {
+                    ctx.drawImage(mapImg, 0, 0, W, H);
+                } else {
+                    ctx.fillStyle = "#111";
+                    ctx.fillRect(0,0,W,H);
+                }
+                
+                // BAYRAKLARI ÇİZ
+                for (let key in gridData) {
+                    let [c, r] = key.split(',').map(Number);
+                    const img = flagCache[gridData[key]];
+                    if(img && img.complete) {
+                        ctx.drawImage(img, c * SLOT, r * SLOT, SLOT, SLOT);
+                    }
+                }
+
+                // GÖZ YORMAYAN IZGARA (Sadece zoom > 0.8 ise)
+                if (scale > 0.8) {
+                    ctx.strokeStyle = "rgba(0, 255, 0, 0.15)";
+                    ctx.lineWidth = 0.5;
+                    ctx.beginPath();
+                    // Performans için sadece görünür alanı çizmek mantıklı ama 
+                    // basitlik için 4000x2000 gridi optimize şekilde çiziyoruz
+                    for(let x = 0; x <= W; x += SLOT) {
+                        ctx.moveTo(x, 0); ctx.lineTo(x, H);
+                    }
+                    for(let y = 0; y <= H; y += SLOT) {
+                        ctx.moveTo(0, y); ctx.lineTo(W, y);
+                    }
+                    ctx.stroke();
+                }
+
+                needsRender = false;
             }
+            requestAnimationFrame(renderLoop);
         }
 
         async function init() {
-            const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
-            const data = await res.json();
-            data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
-                let opt = document.createElement('option');
-                opt.value = c.cca2.toLowerCase(); opt.textContent = c.name.common.toUpperCase();
-                document.getElementById('nationSelect').appendChild(opt);
-                const img = new Image(); img.crossOrigin = "anonymous";
-                img.src = `https://flagcdn.com/w80/${opt.value}.png`;
-                img.onload = () => { flagCache[opt.value] = img; render(); };
-            });
             try {
+                const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
+                const data = await res.json();
+                const sel = document.getElementById('nationSelect');
+                data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
+                    let opt = document.createElement('option');
+                    opt.value = c.cca2.toLowerCase(); 
+                    opt.textContent = c.name.common.toUpperCase();
+                    sel.appendChild(opt);
+                    
+                    const img = new Image(); 
+                    img.crossOrigin = "anonymous";
+                    img.src = `https://flagcdn.com/w80/${opt.value}.png`;
+                    img.onload = () => { flagCache[opt.value] = img; needsRender = true; };
+                });
+
                 const pRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
                 const pData = await pRes.json();
                 if(pData.solana.usd) CURRENT_SOL_USD = pData.solana.usd;
-            } catch(e) {}
+            } catch(e) { console.error("Init failed", e); }
+            
+            requestAnimationFrame(renderLoop);
         }
+        
         init();
+        window.onresize = updateTransform;
     </script>
 </body>
 </html>
