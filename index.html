@@ -2,49 +2,44 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | Classic Stable</title>
+    <title>THE LAST BORDER | v13</title>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
         body, html { background: #020205; color: #0f0; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         canvas { display: block; background-color: #050505; cursor: crosshair; }
-        .ui-panel { position: fixed; z-index: 100; background: rgba(0, 0, 0, 0.85); padding: 15px; border: 1px solid #0f0; border-radius: 4px; pointer-events: auto; }
-        #top-left { top: 20px; left: 20px; width: 200px; }
-        #top-right { top: 20px; right: 20px; width: 220px; }
-        #bottom-right { bottom: 20px; right: 20px; font-size: 12px; }
-        #popup { position: fixed; display: none; background: #000; border: 2px solid #ff4500; padding: 15px; z-index: 200; text-align: center; color: #fff; min-width: 150px; }
+        .ui-panel { position: fixed; z-index: 100; background: rgba(0, 0, 0, 0.9); padding: 15px; border: 1px solid #0f0; border-radius: 4px; pointer-events: auto; }
+        #top-left { top: 20px; left: 20px; width: 220px; }
+        #top-right { top: 20px; right: 20px; width: 240px; }
+        #bottom-right { bottom: 20px; right: 20px; font-size: 11px; color: #0f0; }
+        #popup { position: fixed; display: none; background: #000; border: 2px solid #ff4500; padding: 15px; z-index: 200; text-align: center; color: #fff; min-width: 160px; box-shadow: 0 0 15px rgba(255,69,0,0.4); }
         button { background: #0f0; color: #000; border: none; padding: 10px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 10px; font-family: inherit; }
-        button:hover { background: #0c0; }
-        select { background: #000; color: #0f0; border: 1px solid #0f0; width: 100%; padding: 5px; margin-top: 5px; }
+        select { background: #000; color: #0f0; border: 1px solid #0f0; width: 100%; padding: 8px; margin-top: 5px; cursor: pointer; }
+        .close-btn { background: #333; color: #fff; font-size: 10px; margin-top: 5px; }
     </style>
 </head>
 <body>
 
     <div id="top-left" class="ui-panel">
-        <div style="color: #ff4500; font-weight: bold; margin-bottom: 5px;">WAR CONSOLE</div>
-        <div style="font-size: 10px; margin-bottom: 10px;">SELECT YOUR NATION:</div>
-        <select id="nationSelect">
-            <option value="tr">TURKEY</option>
-            <option value="us">USA</option>
-            <option value="de">GERMANY</option>
-            <option value="gb">UK</option>
-        </select>
+        <div style="color: #ff4500; font-weight: bold; font-size: 14px; margin-bottom: 10px;">GLOBAL CONSOLE</div>
+        <div style="font-size: 10px;">SELECT NATION:</div>
+        <select id="nationSelect"><option>Loading Nations...</option></select>
     </div>
 
     <div id="top-right" class="ui-panel">
-        <div id="wallet-status" style="font-size: 10px; color: #f00; margin-bottom: 5px; text-align: center;">WALLET: DISCONNECTED</div>
-        <button id="connectBtn" onclick="connectWallet()">CONNECT PHANTOM</button>
+        <div id="wallet-status" style="font-size: 10px; color: #ff4500; margin-bottom: 5px; text-align: center;">SYSTEM: OFFLINE</div>
+        <button id="connectBtn" onclick="connectWallet()">CONNECT WALLET</button>
     </div>
 
     <div id="bottom-right" class="ui-panel">
         <div id="coords">X: 0, Y: 0</div>
-        <div style="font-size: 9px; color: #666; margin-top: 5px;">R-CLICK TO PAN | WHEEL TO ZOOM</div>
+        <div style="font-size: 9px; color: #444; margin-top: 5px;">DRAG: RIGHT CLICK | ZOOM: WHEEL</div>
     </div>
 
     <div id="popup">
-        <div id="pop-coord" style="font-size: 11px; margin-bottom: 10px;">COORD: 0, 0</div>
-        <div style="color: #0f0; font-size: 16px; margin-bottom: 10px;">1.00 SOL</div>
-        <button onclick="alert('Database connection required for purchase!')">BUY PIXEL</button>
-        <button onclick="closePopup()" style="background:#333; color:#fff; font-size:10px;">CANCEL</button>
+        <div id="pop-coord" style="font-size: 11px; color: #ff4500;">COORD: 0, 0</div>
+        <div style="font-size: 18px; margin: 10px 0;">1.00 USD</div>
+        <button onclick="alert('System ready. Integration pending.')">CONQUER</button>
+        <button onclick="closePopup()" class="close-btn">CANCEL</button>
     </div>
 
     <canvas id="warMap"></canvas>
@@ -52,83 +47,104 @@
     <script>
         const canvas = document.getElementById('warMap');
         const ctx = canvas.getContext('2d');
-        
+        const GRID_SIZE = 15;
         let width, height;
-        const GRID_SIZE = 20;
-        let scale = 1.0;
-        let offsetX = 0, offsetY = 0;
+        let scale = 0.8;
+        let offsetX = 50, offsetY = 50;
         let isDragging = false;
-        let walletAddress = null;
+        let startX, startY;
 
-        // Harita Görseli (Eğer yüklenmezse diye boşluk bırakıyoruz)
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
 
-        function init() {
+        async function init() {
             resize();
             window.addEventListener('resize', resize);
+            
+            // Ülke listesini full çek
+            try {
+                const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
+                const countries = await res.json();
+                const sel = document.getElementById('nationSelect');
+                sel.innerHTML = "";
+                countries.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.cca2.toLowerCase();
+                    opt.textContent = c.name.common.toUpperCase();
+                    sel.appendChild(opt);
+                });
+            } catch(e) { console.error("Nation API error"); }
+
             mapImg.onload = draw;
             draw();
         }
 
         function resize() {
-            width = window.innerWidth;
-            height = window.innerHeight;
-            canvas.width = width;
-            canvas.height = height;
+            width = window.innerWidth; height = window.innerHeight;
+            canvas.width = width; canvas.height = height;
             draw();
         }
 
         function draw() {
-            ctx.fillStyle = "#050505";
+            ctx.fillStyle = "#020205";
             ctx.fillRect(0, 0, width, height);
 
             ctx.save();
             ctx.translate(offsetX, offsetY);
             ctx.scale(scale, scale);
 
-            // 1. Dünya Haritasını Çiz (Varsa)
             if (mapImg.complete) {
-                ctx.globalAlpha = 0.3;
+                ctx.globalAlpha = 0.4;
                 ctx.drawImage(mapImg, 0, 0, 4000, 2000);
                 ctx.globalAlpha = 1.0;
             }
 
-            // 2. Izgarayı Çiz
-            ctx.strokeStyle = "rgba(0, 255, 0, 0.1)";
-            ctx.lineWidth = 0.5;
-            for (let x = 0; x < 4000; x += GRID_SIZE) {
-                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, 2000); ctx.stroke();
-            }
-            for (let y = 0; y < 2000; y += GRID_SIZE) {
-                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(4000, y); ctx.stroke();
-            }
+            ctx.strokeStyle = "rgba(0, 255, 0, 0.08)";
+            ctx.beginPath();
+            for (let x = 0; x <= 4000; x += GRID_SIZE * 5) { ctx.moveTo(x, 0); ctx.lineTo(x, 2000); }
+            for (let y = 0; y <= 2000; y += GRID_SIZE * 5) { ctx.moveTo(0, y); ctx.lineTo(4000, y); }
+            ctx.stroke();
 
             ctx.restore();
         }
 
-        // --- ETKİLEŞİM ---
-        canvas.onmousedown = (e) => { if(e.button === 2) isDragging = true; };
-        window.onmouseup = () => { isDragging = false; };
-        
+        // --- HAREKET VE ZOOM ---
+        canvas.onmousedown = (e) => {
+            if (e.button === 2) { 
+                isDragging = true; 
+                startX = e.clientX - offsetX;
+                startY = e.clientY - offsetY;
+            }
+        };
+
+        window.onmouseup = () => isDragging = false;
+
         canvas.onmousemove = (e) => {
             if (isDragging) {
-                offsetX += e.movementX;
-                offsetY += e.movementY;
+                offsetX = e.clientX - startX;
+                offsetY = e.clientY - startY;
                 draw();
             }
-            
-            // Koordinat Hesaplama
             const worldX = Math.floor((e.clientX - offsetX) / (scale * GRID_SIZE));
             const worldY = Math.floor((e.clientY - offsetY) / (scale * GRID_SIZE));
             document.getElementById('coords').innerText = `X: ${worldX}, Y: ${worldY}`;
         };
 
+        canvas.onwheel = (e) => {
+            e.preventDefault();
+            const delta = e.deltaY > 0 ? 0.9 : 1.1;
+            const oldScale = scale;
+            scale = Math.min(Math.max(0.1, scale * delta), 10);
+            offsetX = e.clientX - (e.clientX - offsetX) * (scale / oldScale);
+            offsetY = e.clientY - (e.clientY - offsetY) * (scale / oldScale);
+            draw();
+        };
+
         canvas.onclick = (e) => {
+            if (isDragging) return;
             const worldX = Math.floor((e.clientX - offsetX) / (scale * GRID_SIZE));
             const worldY = Math.floor((e.clientY - offsetY) / (scale * GRID_SIZE));
-            
             const pop = document.getElementById('popup');
             pop.style.display = 'block';
             pop.style.left = e.clientX + 'px';
@@ -136,30 +152,17 @@
             document.getElementById('pop-coord').innerText = `COORD: ${worldX}, ${worldY}`;
         };
 
-        canvas.onwheel = (e) => {
-            e.preventDefault();
-            const zoomSpeed = 0.1;
-            const delta = e.deltaY > 0 ? -zoomSpeed : zoomSpeed;
-            const oldScale = scale;
-            scale = Math.min(Math.max(0.2, scale + delta), 5);
-            
-            offsetX = e.clientX - (e.clientX - offsetX) * (scale / oldScale);
-            offsetY = e.clientY - (e.clientY - offsetY) * (scale / oldScale);
-            draw();
-        };
-
         async function connectWallet() {
-            if (window.solana && window.solana.isPhantom) {
+            const provider = window.solana || window.solflare || window.phantom?.solana;
+            if (provider) {
                 try {
-                    const resp = await window.solana.connect();
-                    walletAddress = resp.publicKey.toString();
-                    document.getElementById('wallet-status').innerText = "CONNECTED: " + walletAddress.slice(0, 6) + "...";
+                    const resp = await provider.connect();
+                    const addr = (resp.publicKey || provider.publicKey).toString();
+                    document.getElementById('wallet-status').innerText = "CONNECTED: " + addr.slice(0,6);
                     document.getElementById('wallet-status').style.color = "#0f0";
                     document.getElementById('connectBtn').style.display = "none";
-                } catch (err) { console.error("User rejected"); }
-            } else {
-                alert("Please install Phantom Wallet!");
-            }
+                } catch (err) { alert("Connection rejected"); }
+            } else { alert("Install a Solana Wallet!"); }
         }
 
         function closePopup() { document.getElementById('popup').style.display = 'none'; }
