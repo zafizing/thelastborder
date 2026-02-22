@@ -2,58 +2,52 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v8.9.0</title>
+    <title>THE LAST BORDER | v9.0.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; display: block !important; }
+        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
         canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; border-radius: 4px; }
         #pixel-intel { bottom: 20px; right: 20px; width: 280px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; }
         #buy-popup { position: absolute; z-index: 1000; display: none; background: #000; border: 2px solid #ff4500; padding: 12px; width: 180px; box-shadow: 0 0 20px rgba(255, 69, 0, 0.5); }
-        #ui-overlay { top: 20px; left: 20px; width: 280px; }
         #wallet-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
-        select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 8px; width: 100%; margin-top: 5px; font-family: inherit; }
-        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-weight: bold; border: none; }
-        /* LOADING EKRANI AYARI */
-        #loading { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff4500; font-weight: bold; pointer-events: none; }
-        .close-pop { position: absolute; top: 2px; right: 5px; cursor: pointer; color: #ff4500; font-size: 14px; }
+        #ui-overlay { top: 20px; left: 20px; width: 200px; }
+        select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 5px; width: 100%; font-family: inherit; }
+        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 5px; font-family: inherit; font-weight: bold; }
+        
+        /* ÖNEMLİ: LOADING EKRANI */
+        #loading { 
+            position: fixed; inset: 0; background: #000; z-index: 9999; 
+            display: flex; flex-direction: column; justify-content: center; align-items: center; 
+            color: #ff4500; font-weight: bold; transition: opacity 1s ease;
+        }
     </style>
 </head>
 <body>
     <div id="loading">
-        <div id="load-text">ESTABLISHING GLOBAL DOMINANCE...</div>
-        <div style="font-size: 10px; color: #555; margin-top: 10px;">If stuck, map will force open in 3s...</div>
+        <div id="load-text">INITIATING GLOBAL PROTOCOL...</div>
+        <button onclick="document.getElementById('loading').style.display='none'" style="width:auto; margin-top:20px; background:#ff4500; color:#fff;">BYPASS LOADING</button>
     </div>
     
     <div id="war-room">
         <div id="buy-popup">
-            <span class="close-pop" onclick="closePopup()">×</span>
-            <div style="text-align: center;">
-                <div style="color:#ff4500; font-weight:bold; font-size:10px;">CONQUER PIXEL</div>
-                <div id="pop-price" style="color:#00ff00; font-size:14px; margin: 8px 0;">1.00 USD</div>
-                <button id="execBtn" style="background: #ff4500; color: #fff;" onclick="handlePurchase()">EXECUTE COMMAND</button>
-            </div>
+            <button onclick="closePopup()" style="background:none; color:#ff4500; text-align:right;">[X]</button>
+            <div id="pop-price" style="color:#00ff00; font-size:16px; margin: 10px 0; text-align:center;">1.00 USD</div>
+            <button id="execBtn" style="background: #ff4500; color: #fff;" onclick="handlePurchase()">CONQUER</button>
         </div>
 
-        <div id="ui-overlay" class="panel">
-            <h2 style="margin:0; color: #ff4500; font-size: 12px;">NATION SELECTION</h2>
-            <select id="nationSelect"></select>
-        </div>
-
+        <div id="ui-overlay" class="panel"><select id="nationSelect"></select></div>
         <div id="wallet-panel" class="panel">
-            <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center; margin-bottom: 5px;">STATUS: OFFLINE</div>
+            <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center;">OFFLINE</div>
             <button id="connectBtn" style="background: #00ff00; color: #000;" onclick="connectWallet()">CONNECT WALLET</button>
         </div>
-
         <div id="pixel-intel" class="panel">
             <div id="intel-coords">COORD: 0, 0</div>
-            <div id="intel-status">STATUS: READY</div>
-            <div id="intel-price">VALUATION: 1.00 USD</div>
+            <div id="intel-status">READY</div>
         </div>
-
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
     </div>
 
@@ -64,55 +58,54 @@
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
 
         let supabase, walletAddress, activeProvider, selectedKey;
-        let globalTerritory = {};
-        const flagCache = {};
-
-        const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
-        const W = 4000, H = 2000, SLOT = 8.94;
-        canvas.width = W; canvas.height = H;
-
+        let globalTerritory = {}, flagCache = {};
         let scale = 0.5, originX = 0, originY = 0;
         let isDragging = false, moved = false, startX, startY;
 
-        function forceOpen() {
-            document.getElementById('loading').style.display = 'none';
+        const canvas = document.getElementById('war-canvas');
+        const ctx = canvas.getContext('2d');
+        const W = 4000, H = 2000, SLOT = 8.94;
+        canvas.width = W; canvas.height = H;
+
+        // --- ZORLA KAPATMA FONKSİYONU ---
+        function forceOpen() { 
+            const loader = document.getElementById('loading');
+            if(loader) loader.style.display = 'none'; 
         }
 
         async function init() {
-            if (window.supabase) {
-                supabase = window.supabase.createClient(SB_URL, SB_KEY);
-                syncFromDB(); 
-            }
-            
-            // Ülke listesi çekimi
-            fetch('https://restcountries.com/v3.1/all?fields=name,cca2')
-                .then(r => r.json())
-                .then(countries => {
-                    countries.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
-                        const opt = document.createElement('option');
-                        opt.value = c.cca2.toLowerCase(); opt.textContent = c.name.common.toUpperCase();
-                        document.getElementById('nationSelect').appendChild(opt);
-                        const img = new Image(); img.crossOrigin = "anonymous";
-                        img.src = `https://flagcdn.com/w80/${opt.value}.png`;
-                        img.onload = () => { flagCache[opt.value] = img; render(); };
-                    });
+            try {
+                if (window.supabase) {
+                    supabase = window.supabase.createClient(SB_URL, SB_KEY);
+                    syncFromDB(); 
+                }
+                
+                const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
+                const countries = await res.json();
+                countries.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
+                    const opt = document.createElement('option');
+                    opt.value = c.cca2.toLowerCase(); opt.textContent = c.name.common.toUpperCase();
+                    document.getElementById('nationSelect').appendChild(opt);
+                    const img = new Image(); img.crossOrigin = "anonymous";
+                    img.src = `https://flagcdn.com/w80/${opt.value}.png`;
+                    img.onload = () => { flagCache[opt.value] = img; render(); };
                 });
-
-            // 3 saniye sonra veritabanı gelmese bile haritayı zorla aç!
-            setTimeout(forceOpen, 3000);
+            } catch (e) { console.error("Init failed but continuing..."); }
+            
+            // 5 saniye sonra veritabanı ne durumda olursa olsun perdeyi aç
+            setTimeout(forceOpen, 5000);
         }
 
         async function syncFromDB() {
             if(!supabase) return;
             try {
-                const { data } = await supabase.from('territory').select('*');
+                const { data, error } = await supabase.from('territory').select('*');
                 if (data) {
                     globalTerritory = {};
                     data.forEach(item => { globalTerritory[item.pixel_key] = item; });
                     render();
                 }
-            } catch (e) {}
+            } catch (e) { console.error("DB Sync fail"); }
         }
 
         const mapImg = new Image();
@@ -123,7 +116,7 @@
             originY = (window.innerHeight - H * scale) / 2;
             updateTransform();
             render();
-            forceOpen(); // Görsel yüklendiği an aç!
+            forceOpen(); // Harita geldiği an aç
         };
 
         function render() {
@@ -136,11 +129,10 @@
             }
         }
 
-        function updateTransform() {
-            document.getElementById('canvas-container').style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
+        function updateTransform() { 
+            document.getElementById('canvas-container').style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; 
         }
 
-        // --- ETKİLEŞİM ---
         canvas.addEventListener('mousedown', e => { isDragging = true; moved = false; startX = e.clientX; startY = e.clientY; closePopup(); });
         canvas.addEventListener('mousemove', e => {
             const rect = canvas.getBoundingClientRect();
@@ -176,9 +168,11 @@
 
         async function connectWallet() {
             const provider = window.solana || window.solflare;
+            if(!provider) return alert("Cüzdan yükle!");
             const resp = await provider.connect();
             walletAddress = (resp.publicKey || provider.publicKey).toString();
-            document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,6);
+            activeProvider = provider;
+            document.getElementById('wallet-status').innerText = walletAddress.slice(0,6) + "...";
             document.getElementById('connectBtn').style.display = "none";
         }
 
