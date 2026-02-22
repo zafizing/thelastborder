@@ -1,839 +1,261 @@
- (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
-diff --git a/index.html b/index.html
-index 7afb01bb39142313e725e70b5930e4ddd4583bb3..2d29d457b959055332bbba5d05a9353135376086 100644
---- a/index.html
-+++ b/index.html
-@@ -1,200 +1,630 @@
--<!DOCTYPE html>
--<html lang="en">
--<head>
--    <meta charset="UTF-8">
--    <title>THE LAST BORDER | v15</title>
--    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
--    <style>
--        body, html { background: #020205; color: #0f0; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
--        canvas { display: block; background-color: #000; cursor: crosshair; }
--        .ui-panel { position: fixed; z-index: 100; background: rgba(0, 0, 0, 0.9); padding: 15px; border: 1px solid #0f0; border-radius: 4px; pointer-events: none; }
--        #top-left { top: 20px; left: 20px; width: 220px; pointer-events: auto; }
--        #top-right { top: 20px; right: 20px; width: 240px; pointer-events: auto; }
--        #bottom-right { bottom: 20px; right: 20px; font-size: 11px; }
--        #popup { position: fixed; display: none; background: #000; border: 2px solid #ff4500; padding: 15px; z-index: 200; text-align: center; color: #fff; min-width: 160px; pointer-events: auto; }
--        button { background: #0f0; color: #000; border: none; padding: 10px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 10px; font-family: inherit; }
--        select { background: #000; color: #0f0; border: 1px solid #0f0; width: 100%; padding: 8px; margin-top: 5px; }
--    </style>
--</head>
--<body>
--
--    <div id="top-left" class="ui-panel">
--        <div style="color: #ff4500; font-weight: bold;">WAR CONSOLE v15</div>
--        <select id="nationSelect"></select>
--    </div>
--
--    <div id="top-right" class="ui-panel">
--        <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center;">SYSTEM: READY</div>
--        <button id="connectBtn" onclick="connectWallet()">CONNECT WALLET</button>
--    </div>
--
--    <div id="bottom-right" class="ui-panel">
--        <div id="coords">X: 0, Y: 0</div>
--        <div id="terrain" style="color:#0f0">TERRAIN: LAND</div>
--    </div>
--
--    <div id="popup">
--        <div id="pop-coord" style="font-size: 11px; color: #ff4500;">COORD: 0, 0</div>
--        <button id="conquerBtn" onclick="localConquer()">PAINT FLAG</button>
--        <button onclick="closePopup()" style="background:#333; color:#fff;">CANCEL</button>
--    </div>
--
--    <canvas id="warMap"></canvas>
--
--    <script>
--        const canvas = document.getElementById('warMap');
--        const ctx = canvas.getContext('2d', { willReadFrequently: true });
--        
--        const GRID_W = 400, GRID_H = 250, SLOT = 10; 
--        const WORLD_W = 4000, WORLD_H = 2500;
--
--        let scale = 0.4, offsetX = 100, offsetY = 100;
--        let isDragging = false, startX, startY;
--        let selectedKey = null, localTerritories = {}, flagCache = {};
--
--        // ESKİ HARİTA (Sınırları olan, net harita)
--        const mapImg = new Image();
--        mapImg.crossOrigin = "anonymous";
--        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/b/b3/World-map-2004-cia-factbook.png';
--
--        async function init() {
--            canvas.width = window.innerWidth;
--            canvas.height = window.innerHeight;
--
--            // Ülke Listesi
--            const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
--            const countries = await res.json();
--            const sel = document.getElementById('nationSelect');
--            countries.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
--                const opt = document.createElement('option');
--                opt.value = c.cca2.toLowerCase();
--                opt.textContent = c.name.common.toUpperCase();
--                sel.appendChild(opt);
--                
--                const img = new Image();
--                img.crossOrigin = "anonymous";
--                img.src = `https://flagcdn.com/w80/${opt.value}.png`;
--                img.onload = () => { flagCache[opt.value] = img; draw(); };
--            });
--
--            mapImg.onload = draw;
--            draw();
--        }
--
--        function draw() {
--            ctx.fillStyle = "#020205";
--            ctx.fillRect(0, 0, canvas.width, canvas.height);
--
--            ctx.save();
--            ctx.translate(offsetX, offsetY);
--            ctx.scale(scale, scale);
--
--            if (mapImg.complete) {
--                ctx.drawImage(mapImg, 0, 0, WORLD_W, WORLD_H);
--            }
--
--            // ESKİ IZGARA SİSTEMİ
--            ctx.strokeStyle = "rgba(0, 255, 0, 0.15)";
--            ctx.lineWidth = 1;
--            ctx.beginPath();
--            for(let x=0; x<=WORLD_W; x+=SLOT*5) { ctx.moveTo(x,0); ctx.lineTo(x,WORLD_H); }
--            for(let y=0; y<=WORLD_H; y+=SLOT*5) { ctx.moveTo(0,y); ctx.lineTo(WORLD_W,y); }
--            ctx.stroke();
--
--            // Bayrakları çiz
--            for (let key in localTerritories) {
--                const [gx, gy] = key.split(',').map(Number);
--                const code = localTerritories[key];
--                if (flagCache[code]) {
--                    ctx.drawImage(flagCache[code], gx * SLOT, gy * SLOT, SLOT, SLOT);
--                }
--            }
--
--            ctx.restore();
--        }
--
--        // --- KESİN ÇÖZÜM: KAYDIRMA (PAN) ---
--        canvas.onmousedown = (e) => {
--            if (e.button === 2) { 
--                isDragging = true;
--                startX = e.clientX - offsetX;
--                startY = e.clientY - offsetY;
--                canvas.style.cursor = "grabbing";
--            }
--        };
--
--        window.onmouseup = () => { 
--            isDragging = false; 
--            canvas.style.cursor = "crosshair"; 
--        };
--
--        canvas.onmousemove = (e) => {
--            if (isDragging) {
--                offsetX = e.clientX - startX;
--                offsetY = e.clientY - startY;
--                draw();
--            }
--
--            const worldX = (e.clientX - offsetX) / scale;
--            const worldY = (e.clientY - offsetY) / scale;
--            const gx = Math.floor(worldX / SLOT);
--            const gy = Math.floor(worldY / SLOT);
--
--            if(gx >= 0 && gx < GRID_W && gy >= 0 && gy < GRID_H) {
--                document.getElementById('coords').innerText = `X: ${gx}, Y: ${gy}`;
--                
--                // ARAZİ KONTROLÜ (Mavi = Deniz, Gri/Beyaz = Sınır/Kara)
--                const p = ctx.getImageData(e.clientX, e.clientY, 1, 1).data;
--                const isBlue = p[2] > p[0] && p[2] > p[1] && p[2] > 100;
--                const terrain = document.getElementById('terrain');
--                terrain.innerText = isBlue ? "TERRAIN: SEA (LOCKED)" : "TERRAIN: LAND";
--                terrain.style.color = isBlue ? "#f00" : "#0f0";
--            }
--        };
--
--        canvas.onwheel = (e) => {
--            e.preventDefault();
--            const delta = e.deltaY > 0 ? 0.8 : 1.2;
--            const oldScale = scale;
--            scale = Math.min(Math.max(0.1, scale * delta), 15);
--            offsetX = e.clientX - (e.clientX - offsetX) * (scale / oldScale);
--            offsetY = e.clientY - (e.clientY - offsetY) * (scale / oldScale);
--            draw();
--        };
--
--        canvas.onclick = (e) => {
--            if (isDragging) return;
--            const p = ctx.getImageData(e.clientX, e.clientY, 1, 1).data;
--            const isBlue = p[2] > p[0] && p[2] > p[1] && p[2] > 100;
--            if (isBlue) return; // Denize tıklama iptal
--
--            const worldX = (e.clientX - offsetX) / scale;
--            const worldY = (e.clientY - offsetY) / scale;
--            const gx = Math.floor(worldX / SLOT);
--            const gy = Math.floor(worldY / SLOT);
--
--            if(gx < 0 || gx >= GRID_W || gy < 0 || gy >= GRID_H) return;
--
--            selectedKey = `${gx},${gy}`;
--            const pop = document.getElementById('popup');
--            pop.style.left = e.clientX + "px";
--            pop.style.top = e.clientY + "px";
--            pop.style.display = 'block';
--            document.getElementById('pop-coord').innerText = `COORD: ${gx}, ${gy}`;
--        };
--
--        function localConquer() {
--            const code = document.getElementById('nationSelect').value;
--            localTerritories[selectedKey] = code;
--            draw();
--            closePopup();
--        }
--
--        function closePopup() { document.getElementById('popup').style.display = 'none'; }
--        window.oncontextmenu = (e) => e.preventDefault();
--        window.onresize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; draw(); };
--
--        init();
--    </script>
--</body>
--</html>
-+<!DOCTYPE html>
-+<html lang="tr">
-+<head>
-+  <meta charset="UTF-8" />
-+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-+  <title>The Last Border | Cyber War Room</title>
-+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-+  <style>
-+    :root {
-+      --bg: #020205;
-+      --neon: #00ff00;
-+      --orange: #ff4500;
-+      --panel: rgba(0, 0, 0, 0.86);
-+      --danger: #ff2f2f;
-+      --sea: #00c2d1;
-+    }
-+
-+    * { box-sizing: border-box; }
-+
-+    html, body {
-+      margin: 0;
-+      width: 100%;
-+      height: 100%;
-+      overflow: hidden;
-+      background: radial-gradient(circle at 10% 10%, #10191f 0%, var(--bg) 35%, #000 100%);
-+      color: var(--neon);
-+      font-family: "Courier New", Consolas, monospace;
-+    }
-+
-+    #warMap {
-+      position: fixed;
-+      inset: 0;
-+      width: 100vw;
-+      height: 100vh;
-+      display: block;
-+      cursor: crosshair;
-+      background: #000;
-+    }
-+
-+    .panel {
-+      position: fixed;
-+      z-index: 10;
-+      background: var(--panel);
-+      border: 1px solid var(--neon);
-+      border-radius: 8px;
-+      backdrop-filter: blur(3px);
-+      box-shadow: 0 0 18px rgba(0, 255, 0, 0.18);
-+      padding: 12px;
-+    }
-+
-+    .title {
-+      color: var(--orange);
-+      font-weight: 700;
-+      letter-spacing: 1px;
-+      margin-bottom: 8px;
-+    }
-+
-+    #topLeft { top: 16px; left: 16px; width: 290px; }
-+    #topRight { top: 16px; right: 16px; width: 320px; }
-+    #bottomRight { right: 16px; bottom: 16px; width: 260px; }
-+
-+    select, button {
-+      width: 100%;
-+      padding: 8px 10px;
-+      margin-top: 8px;
-+      border: 1px solid var(--neon);
-+      border-radius: 6px;
-+      background: #010801;
-+      color: var(--neon);
-+      font-family: inherit;
-+      font-size: 13px;
-+    }
-+
-+    button {
-+      cursor: pointer;
-+      background: linear-gradient(180deg, #063a06 0%, #031c03 100%);
-+      font-weight: 700;
-+    }
-+
-+    button.primary {
-+      border-color: var(--orange);
-+      color: #fff;
-+      background: linear-gradient(180deg, #ff6a31 0%, #b52d00 100%);
-+    }
-+
-+    .muted { color: #8cb98c; font-size: 12px; }
-+    .danger { color: var(--danger); }
-+    .ok { color: var(--neon); }
-+
-+    #popup {
-+      position: fixed;
-+      z-index: 20;
-+      min-width: 220px;
-+      border: 2px solid var(--orange);
-+      border-radius: 8px;
-+      padding: 12px;
-+      background: rgba(0, 0, 0, 0.95);
-+      box-shadow: 0 0 20px rgba(255, 69, 0, 0.35);
-+      display: none;
-+    }
-+
-+    .row { margin-top: 6px; font-size: 12px; }
-+  </style>
-+</head>
-+<body>
-+  <canvas id="warMap"></canvas>
-+
-+  <section id="topLeft" class="panel">
-+    <div class="title">THE LAST BORDER // WAR ROOM</div>
-+    <div class="muted">400 x 250 grid · 100,000 territories</div>
-+    <select id="nationSelect"></select>
-+    <div id="countryStatus" class="muted">Ülkeler yükleniyor...</div>
-+  </section>
-+
-+  <section id="topRight" class="panel">
-+    <div class="title">WALLET & CHAIN STATUS</div>
-+    <div id="walletStatus" class="muted">Cüzdan bekleniyor...</div>
-+    <button id="connectBtn">CONNECT WALLET</button>
-+    <div id="dbStatus" class="muted">DB: hazırlanıyor...</div>
-+  </section>
-+
-+  <section id="bottomRight" class="panel">
-+    <div id="coords">COORD: 0,0</div>
-+    <div id="terrain" class="ok">TERRAIN: LAND</div>
-+    <div id="zoomLabel" class="muted">ZOOM: 1.00x</div>
-+    <div id="modeLabel" class="muted">MODE: MAP</div>
-+  </section>
-+
-+  <div id="popup">
-+    <div class="title">TARGET LOCK</div>
-+    <div id="popupCoord" class="row">COORD: -</div>
-+    <div id="popupTerrain" class="row">TERRAIN: -</div>
-+    <button id="conquerBtn" class="primary">CONQUER</button>
-+    <button id="closeBtn">CANCEL</button>
-+  </div>
-+
-+  <script>
-+    (() => {
-+      const GRID_W = 400;
-+      const GRID_H = 250;
-+      const SLOT = 10;
-+      const WORLD_W = GRID_W * SLOT;
-+      const WORLD_H = GRID_H * SLOT;
-+      const SEA_THRESHOLD = { blueMin: 95, greenMin: 85, redMax: 120 };
-+
-+      const SUPABASE_URL = "https://YOUR_PROJECT.supabase.co";
-+      const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY";
-+
-+      const MAP_URL = "https://upload.wikimedia.org/wikipedia/commons/b/b3/World-map-2004-cia-factbook.png";
-+
-+      const canvas = document.getElementById("warMap");
-+      const ctx = canvas.getContext("2d", { alpha: false });
-+
-+      const coordsEl = document.getElementById("coords");
-+      const terrainEl = document.getElementById("terrain");
-+      const zoomLabel = document.getElementById("zoomLabel");
-+      const modeLabel = document.getElementById("modeLabel");
-+      const countryStatus = document.getElementById("countryStatus");
-+      const walletStatus = document.getElementById("walletStatus");
-+      const dbStatus = document.getElementById("dbStatus");
-+      const nationSelect = document.getElementById("nationSelect");
-+
-+      const popup = document.getElementById("popup");
-+      const popupCoord = document.getElementById("popupCoord");
-+      const popupTerrain = document.getElementById("popupTerrain");
-+      const conquerBtn = document.getElementById("conquerBtn");
-+      const closeBtn = document.getElementById("closeBtn");
-+      const connectBtn = document.getElementById("connectBtn");
-+
-+      const offscreen = document.createElement("canvas");
-+      offscreen.width = WORLD_W;
-+      offscreen.height = WORLD_H;
-+      const offCtx = offscreen.getContext("2d", { willReadFrequently: true });
-+
-+      const state = {
-+        camera: {
-+          scale: 0.32,
-+          minScale: 0.1,
-+          maxScale: 15,
-+          offsetX: 0,
-+          offsetY: 0,
-+          dragging: false
-+        },
-+        pointer: { x: 0, y: 0 },
-+        selected: null,
-+        countries: [],
-+        flags: new Map(),
-+        territories: new Map(),
-+        terrainMaskReady: false,
-+        mapReady: false,
-+        fallbackMode: false,
-+        wallet: null,
-+        walletAddress: "-",
-+        supabase: null,
-+        dbEnabled: false
-+      };
-+
-+      function resizeCanvas() {
-+        canvas.width = window.innerWidth;
-+        canvas.height = window.innerHeight;
-+        if (state.camera.offsetX === 0 && state.camera.offsetY === 0) {
-+          state.camera.offsetX = (canvas.width - WORLD_W * state.camera.scale) * 0.5;
-+          state.camera.offsetY = (canvas.height - WORLD_H * state.camera.scale) * 0.5;
-+        }
-+      }
-+
-+      function clamp(value, min, max) {
-+        return Math.max(min, Math.min(max, value));
-+      }
-+
-+      function worldToGrid(wx, wy) {
-+        return {
-+          gx: Math.floor(wx / SLOT),
-+          gy: Math.floor(wy / SLOT)
-+        };
-+      }
-+
-+      function gridToKey(gx, gy) {
-+        return `${gx},${gy}`;
-+      }
-+
-+      function fromScreenToWorld(sx, sy) {
-+        return {
-+          x: (sx - state.camera.offsetX) / state.camera.scale,
-+          y: (sy - state.camera.offsetY) / state.camera.scale
-+        };
-+      }
-+
-+      function isSeaRgb(r, g, b) {
-+        return b >= SEA_THRESHOLD.blueMin && g >= SEA_THRESHOLD.greenMin && r <= SEA_THRESHOLD.redMax && b > r && b >= g;
-+      }
-+
-+      function isSeaAtGrid(gx, gy) {
-+        if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) return true;
-+        const px = gx * SLOT + SLOT * 0.5;
-+        const py = gy * SLOT + SLOT * 0.5;
-+
-+        try {
-+          const data = offCtx.getImageData(px, py, 1, 1).data;
-+          return isSeaRgb(data[0], data[1], data[2]);
-+        } catch (err) {
-+          console.warn("Terrain sampling blocked (likely CORS taint), fallback mode forced.", err);
-+          drawFallbackMap();
-+          const fallback = offCtx.getImageData(px, py, 1, 1).data;
-+          return isSeaRgb(fallback[0], fallback[1], fallback[2]);
-+        }
-+      }
-+
-+      function drawFallbackMap() {
-+        offCtx.fillStyle = "#17a6b4";
-+        offCtx.fillRect(0, 0, WORLD_W, WORLD_H);
-+
-+        offCtx.fillStyle = "#d6d3c6";
-+        offCtx.strokeStyle = "#222";
-+        offCtx.lineWidth = 3;
-+
-+        const continents = [
-+          [
-+            [220, 280], [430, 180], [740, 210], [970, 330], [1130, 550], [1030, 760], [780, 820], [550, 710], [330, 560]
-+          ],
-+          [
-+            [980, 930], [1160, 890], [1310, 990], [1280, 1230], [1160, 1480], [990, 1360], [910, 1130]
-+          ],
-+          [
-+            [1680, 220], [1940, 170], [2180, 260], [2270, 390], [2160, 550], [1980, 590], [1770, 520], [1630, 380]
-+          ],
-+          [
-+            [1900, 630], [2070, 670], [2160, 790], [2120, 930], [1990, 1020], [1840, 910], [1810, 760]
-+          ],
-+          [
-+            [2460, 250], [2820, 150], [3320, 220], [3620, 350], [3550, 520], [3110, 540], [2720, 500], [2480, 410]
-+          ],
-+          [
-+            [3050, 660], [3270, 690], [3390, 870], [3310, 1030], [3130, 1100], [2980, 980], [2950, 790]
-+          ],
-+          [
-+            [3360, 1730], [3500, 1700], [3610, 1780], [3550, 1880], [3410, 1900], [3330, 1820]
-+          ]
-+        ];
-+
-+        continents.forEach((poly) => {
-+          offCtx.beginPath();
-+          offCtx.moveTo(poly[0][0], poly[0][1]);
-+          for (let i = 1; i < poly.length; i += 1) offCtx.lineTo(poly[i][0], poly[i][1]);
-+          offCtx.closePath();
-+          offCtx.fill();
-+          offCtx.stroke();
-+        });
-+
-+        state.fallbackMode = true;
-+        state.terrainMaskReady = true;
-+        modeLabel.textContent = "MODE: FALLBACK GRID";
-+      }
-+
-+      function loadMapImage() {
-+        const img = new Image();
-+        img.crossOrigin = "anonymous";
-+
-+        img.onload = () => {
-+          try {
-+            offCtx.clearRect(0, 0, WORLD_W, WORLD_H);
-+            offCtx.drawImage(img, 0, 0, WORLD_W, WORLD_H);
-+
-+            // Verify pixel reads are allowed (prevents tainted-canvas crashes).
-+            offCtx.getImageData(0, 0, 1, 1);
-+
-+            state.mapReady = true;
-+            state.terrainMaskReady = true;
-+            state.fallbackMode = false;
-+            modeLabel.textContent = "MODE: MAP";
-+          } catch (err) {
-+            console.error("Map draw/sample error, fallback mode active:", err);
-+            drawFallbackMap();
-+          }
-+        };
-+
-+        img.onerror = () => {
-+          console.warn("Map load failed, fallback mode active.");
-+          drawFallbackMap();
-+        };
-+
-+        img.src = MAP_URL;
-+      }
-+
-+      async function loadCountries() {
-+        nationSelect.innerHTML = "";
-+        try {
-+          const response = await fetch("https://restcountries.com/v3.1/all?fields=name,cca2", { cache: "force-cache" });
-+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-+          const countries = await response.json();
-+          countries
-+            .filter((c) => c.cca2 && c.name && c.name.common)
-+            .sort((a, b) => a.name.common.localeCompare(b.name.common))
-+            .forEach((c) => {
-+              const code = c.cca2.toLowerCase();
-+              const option = document.createElement("option");
-+              option.value = code;
-+              option.textContent = c.name.common.toUpperCase();
-+              nationSelect.appendChild(option);
-+
-+              const flag = new Image();
-+              flag.crossOrigin = "anonymous";
-+              flag.onload = () => state.flags.set(code, flag);
-+              flag.onerror = () => console.warn("Flag load failed:", code);
-+              flag.src = `https://flagcdn.com/w80/${code}.png`;
-+            });
-+
-+          state.countries = countries;
-+          countryStatus.textContent = `${countries.length} ülke yüklendi.`;
-+        } catch (err) {
-+          console.error("Country API error:", err);
-+          const fallback = [{ name: { common: "TURKEY" }, cca2: "TR" }];
-+          fallback.forEach((c) => {
-+            const option = document.createElement("option");
-+            option.value = c.cca2.toLowerCase();
-+            option.textContent = c.name.common;
-+            nationSelect.appendChild(option);
-+          });
-+          countryStatus.textContent = "Ülke listesi yüklenemedi (fallback).";
-+          countryStatus.classList.add("danger");
-+        }
-+      }
-+
-+      function detectWallet() {
-+        const providers = [];
-+        if (window.solana?.isPhantom) providers.push(window.solana);
-+        if (window.solflare?.isSolflare) providers.push(window.solflare);
-+        if (Array.isArray(window.solana?.providers)) {
-+          window.solana.providers.forEach((p) => {
-+            if (p?.isGlow) providers.push(p);
-+            if (p?.isPhantom) providers.push(p);
-+            if (p?.isSolflare) providers.push(p);
-+          });
-+        }
-+        if (window.glowSolana?.isGlow) providers.push(window.glowSolana);
-+
-+        const dedup = [...new Set(providers)];
-+        state.wallet = dedup[0] || null;
-+
-+        if (state.wallet) {
-+          const walletName = state.wallet.isPhantom ? "Phantom" : state.wallet.isSolflare ? "Solflare" : state.wallet.isGlow ? "Glow" : "Solana Wallet";
-+          walletStatus.textContent = `${walletName} bulundu.`;
-+          walletStatus.classList.remove("danger");
-+        } else {
-+          walletStatus.textContent = "Phantom / Solflare / Glow bulunamadı.";
-+          walletStatus.classList.add("danger");
-+        }
-+      }
-+
-+      async function connectWallet() {
-+        if (!state.wallet) {
-+          detectWallet();
-+          if (!state.wallet) return;
-+        }
-+
-+        try {
-+          const result = await state.wallet.connect();
-+          state.walletAddress = result.publicKey.toString();
-+          walletStatus.textContent = `Connected: ${state.walletAddress.slice(0, 4)}...${state.walletAddress.slice(-4)}`;
-+          walletStatus.classList.remove("danger");
-+        } catch (err) {
-+          console.error("Wallet connect error:", err);
-+          walletStatus.textContent = "Wallet connection rejected/failed.";
-+          walletStatus.classList.add("danger");
-+        }
-+      }
-+
-+      function initSupabase() {
-+        try {
-+          if (SUPABASE_URL.includes("YOUR_PROJECT") || SUPABASE_ANON_KEY.includes("YOUR_SUPABASE")) {
-+            throw new Error("Supabase credentials missing");
-+          }
-+          state.supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-+          state.dbEnabled = true;
-+          dbStatus.textContent = "DB: online";
-+        } catch (err) {
-+          console.warn("Supabase init warning:", err.message);
-+          state.dbEnabled = false;
-+          dbStatus.textContent = "DB: offline (map running local mode)";
-+          dbStatus.classList.add("danger");
-+        }
-+      }
-+
-+      async function loadTerritoriesFromDb() {
-+        if (!state.dbEnabled) return;
-+        try {
-+          const { data, error } = await state.supabase
-+            .from("territory")
-+            .select("pixel_key, owner_address, nation_code, price")
-+            .limit(100000);
-+          if (error) throw error;
-+          data.forEach((row) => {
-+            state.territories.set(row.pixel_key, {
-+              owner_address: row.owner_address,
-+              nation_code: (row.nation_code || "").toLowerCase(),
-+              price: row.price
-+            });
-+          });
-+          dbStatus.textContent = `DB: ${data.length} territory yüklendi`;
-+          dbStatus.classList.remove("danger");
-+        } catch (err) {
-+          console.error("Territory load error:", err);
-+          dbStatus.textContent = "DB read failed (local mode active)";
-+          dbStatus.classList.add("danger");
-+        }
-+      }
-+
-+      async function conquerSelected() {
-+        if (!state.selected) return;
-+        const code = nationSelect.value;
-+        const key = gridToKey(state.selected.gx, state.selected.gy);
-+        if (!code) return;
-+
-+        if (isSeaAtGrid(state.selected.gx, state.selected.gy)) {
-+          popupTerrain.textContent = "TERRAIN: SEA (LOCKED)";
-+          popupTerrain.classList.add("danger");
-+          return;
-+        }
-+
-+        const record = {
-+          pixel_key: key,
-+          owner_address: state.walletAddress,
-+          nation_code: code,
-+          price: 1
-+        };
-+
-+        state.territories.set(key, record);
-+
-+        if (state.dbEnabled) {
-+          try {
-+            const { error } = await state.supabase.from("territory").upsert(record, { onConflict: "pixel_key" });
-+            if (error) throw error;
-+          } catch (err) {
-+            console.error("Upsert error:", err);
-+            dbStatus.textContent = "DB write failed, local save only";
-+            dbStatus.classList.add("danger");
-+          }
-+        }
-+
-+        popup.style.display = "none";
-+      }
-+
-+      function updateHoverInfo(clientX, clientY) {
-+        const world = fromScreenToWorld(clientX, clientY);
-+        const { gx, gy } = worldToGrid(world.x, world.y);
-+
-+        if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) return;
-+
-+        const isSea = isSeaAtGrid(gx, gy);
-+        coordsEl.textContent = `COORD: ${gx},${gy}`;
-+        terrainEl.textContent = `TERRAIN: ${isSea ? "SEA (LOCKED)" : "LAND"}`;
-+        terrainEl.className = isSea ? "danger" : "ok";
-+      }
-+
-+      function render() {
-+        ctx.fillStyle = "#010103";
-+        ctx.fillRect(0, 0, canvas.width, canvas.height);
-+
-+        ctx.save();
-+        ctx.translate(state.camera.offsetX, state.camera.offsetY);
-+        ctx.scale(state.camera.scale, state.camera.scale);
-+
-+        ctx.drawImage(offscreen, 0, 0);
-+
-+        ctx.strokeStyle = "rgba(0,255,0,0.17)";
-+        ctx.lineWidth = 1;
-+        ctx.beginPath();
-+        for (let x = 0; x <= WORLD_W; x += SLOT * 5) {
-+          ctx.moveTo(x, 0);
-+          ctx.lineTo(x, WORLD_H);
-+        }
-+        for (let y = 0; y <= WORLD_H; y += SLOT * 5) {
-+          ctx.moveTo(0, y);
-+          ctx.lineTo(WORLD_W, y);
-+        }
-+        ctx.stroke();
-+
-+        for (const [key, item] of state.territories.entries()) {
-+          const [gx, gy] = key.split(",").map(Number);
-+          const x = gx * SLOT;
-+          const y = gy * SLOT;
-+
-+          const flag = state.flags.get((item.nation_code || "").toLowerCase());
-+          if (flag) {
-+            ctx.drawImage(flag, x, y, SLOT, SLOT);
-+          } else {
-+            ctx.fillStyle = "rgba(255,69,0,0.8)";
-+            ctx.fillRect(x, y, SLOT, SLOT);
-+          }
-+        }
-+
-+        if (state.selected) {
-+          ctx.lineWidth = 2;
-+          ctx.strokeStyle = "#ff4500";
-+          ctx.strokeRect(state.selected.gx * SLOT, state.selected.gy * SLOT, SLOT, SLOT);
-+        }
-+
-+        ctx.restore();
-+        zoomLabel.textContent = `ZOOM: ${state.camera.scale.toFixed(2)}x`;
-+
-+        requestAnimationFrame(render);
-+      }
-+
-+      function bindEvents() {
-+        window.addEventListener("resize", resizeCanvas);
-+        window.addEventListener("contextmenu", (e) => e.preventDefault());
-+
-+        canvas.addEventListener("mousedown", (e) => {
-+          if (e.button === 2) {
-+            state.camera.dragging = true;
-+            canvas.style.cursor = "grabbing";
-+          }
-+        });
-+
-+        window.addEventListener("mouseup", () => {
-+          state.camera.dragging = false;
-+          canvas.style.cursor = "crosshair";
-+        });
-+
-+        canvas.addEventListener("mousemove", (e) => {
-+          state.pointer.x = e.clientX;
-+          state.pointer.y = e.clientY;
-+          if (state.camera.dragging) {
-+            state.camera.offsetX += e.movementX;
-+            state.camera.offsetY += e.movementY;
-+          }
-+          if (state.terrainMaskReady) updateHoverInfo(e.clientX, e.clientY);
-+        });
-+
-+        canvas.addEventListener("wheel", (e) => {
-+          e.preventDefault();
-+          const oldScale = state.camera.scale;
-+          const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
-+          state.camera.scale = clamp(oldScale * zoomFactor, state.camera.minScale, state.camera.maxScale);
-+
-+          const focusX = e.clientX;
-+          const focusY = e.clientY;
-+          const worldX = (focusX - state.camera.offsetX) / oldScale;
-+          const worldY = (focusY - state.camera.offsetY) / oldScale;
-+
-+          state.camera.offsetX = focusX - worldX * state.camera.scale;
-+          state.camera.offsetY = focusY - worldY * state.camera.scale;
-+        }, { passive: false });
-+
-+        canvas.addEventListener("click", (e) => {
-+          if (state.camera.dragging || !state.terrainMaskReady) return;
-+          const world = fromScreenToWorld(e.clientX, e.clientY);
-+          const { gx, gy } = worldToGrid(world.x, world.y);
-+          if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) return;
-+
-+          const sea = isSeaAtGrid(gx, gy);
-+          state.selected = { gx, gy };
-+
-+          popupCoord.textContent = `COORD: ${gx},${gy}`;
-+          popupTerrain.textContent = `TERRAIN: ${sea ? "SEA" : "LAND"}`;
-+          popupTerrain.classList.toggle("danger", sea);
-+          conquerBtn.disabled = sea;
-+          conquerBtn.textContent = sea ? "SEA LOCKED" : "CONQUER";
-+
-+          popup.style.left = `${Math.min(e.clientX + 12, window.innerWidth - 240)}px`;
-+          popup.style.top = `${Math.min(e.clientY + 12, window.innerHeight - 180)}px`;
-+          popup.style.display = "block";
-+        });
-+
-+        closeBtn.addEventListener("click", () => {
-+          popup.style.display = "none";
-+        });
-+
-+        conquerBtn.addEventListener("click", conquerSelected);
-+        connectBtn.addEventListener("click", connectWallet);
-+      }
-+
-+      window.onload = () => {
-+        resizeCanvas();
-+        drawFallbackMap();
-+        loadMapImage();
-+        bindEvents();
-+        detectWallet();
-+        initSupabase();
-+        render();
-+
-+        Promise.resolve()
-+          .then(loadCountries)
-+          .then(loadTerritoriesFromDb)
-+          .catch((err) => console.error("Post-init async chain error:", err));
-+      };
-+    })();
-+  </script>
-+</body>
-+</html>
- 
-EOF
-)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>THE LAST BORDER | v8.4.2 PRECISION</title>
+    <style>
+        body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
+        #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
+        canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
+        .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); border-radius: 4px; }
+        
+        #pixel-intel { bottom: 20px; right: 20px; width: 250px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; box-shadow: 0 0 10px rgba(0,255,0,0.2); }
+        #buy-popup { 
+            position: absolute; z-index: 1000; display: none;
+            background: #000; border: 2px solid #ff4500; padding: 12px;
+            width: 180px; box-shadow: 0 0 20px rgba(255, 69, 0, 0.5);
+        }
+        .close-pop { position: absolute; top: 2px; right: 5px; cursor: pointer; color: #ff4500; font-size: 14px; }
+        #ui-overlay { top: 20px; left: 20px; width: 280px; }
+        #wallet-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
+        
+        input, select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 8px; width: 100%; box-sizing: border-box; margin-top: 5px; font-family: inherit; }
+        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-weight: bold; border: none; }
+        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff4500; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="loading">
+        <div>CALIBRATING SAT-LINK...</div>
+        <div style="font-size: 10px; margin-top: 10px; color: #666;">LOADING MAP DATA...</div>
+    </div>
+    
+    <div id="war-room">
+        <div id="buy-popup">
+            <span class="close-pop" onclick="closePopup()">×</span>
+            <div style="text-align: center;">
+                <div style="color:#ff4500; font-weight:bold; font-size:10px;">CONQUER PIXEL</div>
+                <div id="pop-price" style="color:#00ff00; font-size:14px; margin: 8px 0;">1.00 USD</div>
+                <button style="background: #ff4500; color: #fff;" onclick="handlePurchase(1)">EXECUTE COMMAND</button>
+            </div>
+        </div>
+
+        <div id="ui-overlay" class="panel">
+            <h2 style="margin:0; color: #ff4500; font-size: 14px;">WAR COMMAND</h2>
+            <select id="nationSelect"></select>
+            <div id="state-creator" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
+                <input type="text" id="customName" placeholder="NATION NAME">
+                <input type="text" id="customFlag" placeholder="FLAG URL">
+                <button style="background: #00ff00; color: #000;" onclick="handlePurchase(100)">ESTABLISH STATE (100$)</button>
+            </div>
+        </div>
+
+        <div id="wallet-panel" class="panel">
+            <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center; margin-bottom: 5px;">STATUS: OFFLINE</div>
+            <button id="connectBtn" style="background: #00ff00; color: #000;" onclick="connectWallet()">CONNECT WALLET</button>
+        </div>
+
+        <div id="pixel-intel" class="panel">
+            <div style="color:#ff4500; font-weight:bold; border-bottom: 1px solid #ff4500; margin-bottom: 5px;">LIVE INTEL FEED</div>
+            <div id="intel-coords">COORD: 0, 0</div>
+            <div id="intel-status" style="margin: 4px 0;">STATUS: READY</div>
+            <div id="intel-price">VALUATION: 1.00 USD</div>
+        </div>
+
+        <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
+    </div>
+
+    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
+
+    <script>
+        const HELIUS_KEY = "ec1aa17e-f949-4ab9-a2b2-0a16a3af2cb2"; 
+        const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`;
+        const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
+        let CURRENT_SOL_USD = 135; // Default Solana Price
+
+        const canvas = document.getElementById('war-canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const container = document.getElementById('canvas-container');
+        const popup = document.getElementById('buy-popup');
+        const W = 4000, H = 2000, SLOT = 8.94;
+        canvas.width = W; canvas.height = H;
+
+        let gridData = JSON.parse(localStorage.getItem('border_data_v8') || '{}');
+        let gridPrices = JSON.parse(localStorage.getItem('border_prices_v8') || '{}');
+        const flagCache = {};
+        let walletAddress = null;
+        let activeProvider = null;
+        let selectedKey = null;
+        let mapLoaded = false;
+
+        let startX, startY, isDragging = false, moved = false;
+        let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
+
+        async function connectWallet() {
+            const provider = window.solflare || window.solana;
+            if (!provider) return alert("Solana wallet required!");
+            try {
+                const resp = await provider.connect();
+                walletAddress = (resp.publicKey || provider.publicKey).toString();
+                activeProvider = provider;
+                document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,8);
+                document.getElementById('wallet-status').style.color = "#00ff00";
+                document.getElementById('connectBtn').style.display = "none";
+            } catch (err) { console.error(err); }
+        }
+
+        // --- DİNAMİK INTEL & DENİZ KONTROLÜ (FIXED) ---
+        function getCanvasCoords(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            // Client koordinatlarını canvas üzerindeki 4000x2000 ölçeğine tam eşler
+            const x = (clientX - rect.left) * (canvas.width / rect.width);
+            const y = (clientY - rect.top) * (canvas.height / rect.height);
+            return { x, y };
+        }
+
+        function checkMaritime(x, y) {
+            if (!mapLoaded) return false;
+            // Canvas dışına çıkış kontrolü
+            if (x < 0 || x >= W || y < 0 || y >= H) return true;
+            
+            const pixel = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+            const brightness = pixel[0] + pixel[1] + pixel[2];
+            // SVG haritada okyanus 0 (siyah), karalar 200+ (gri) civarıdır.
+            // 100 eşiği güvenli bir sınırdır.
+            return (brightness < 100); 
+        }
+
+        function updateIntel(e) {
+            const coords = getCanvasCoords(e.clientX, e.clientY);
+            const col = Math.floor(coords.x / SLOT);
+            const row = Math.floor(coords.y / SLOT);
+            const key = `${col},${row}`;
+            const isOcean = checkMaritime(coords.x, coords.y);
+
+            document.getElementById('intel-coords').innerText = `COORD: ${col}, ${row}`;
+            const statusEl = document.getElementById('intel-status');
+            
+            if (isOcean) {
+                statusEl.innerText = "STATUS: INTERNATIONAL WATERS";
+                statusEl.style.color = "#5555ff";
+            } else {
+                const owner = gridData[key];
+                statusEl.innerText = owner ? `OWNER: ${owner.toUpperCase()}` : "STATUS: UNCLAIMED";
+                statusEl.style.color = owner ? "#ff4500" : "#00ff00";
+            }
+            document.getElementById('intel-price').innerText = `VALUATION: ${(gridPrices[key] || 1.00).toFixed(2)} USD`;
+            return { isOcean, key };
+        }
+
+        async function handlePurchase(type) {
+            if (!walletAddress) return alert("First connect your wallet!");
+            const price = (type === 100) ? 100 : (gridPrices[selectedKey] || 1.00);
+            const lamports = Math.floor((price / CURRENT_SOL_USD) * solanaWeb3.LAMPORTS_PER_SOL);
+
+            try {
+                const connection = new solanaWeb3.Connection(HELIUS_RPC, 'confirmed');
+                const { blockhash } = await connection.getLatestBlockhash('finalized');
+                const tx = new solanaWeb3.Transaction().add(
+                    solanaWeb3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 2500 }),
+                    solanaWeb3.SystemProgram.transfer({
+                        fromPubkey: new solanaWeb3.PublicKey(walletAddress),
+                        toPubkey: new solanaWeb3.PublicKey(MASTER_WALLET),
+                        lamports: lamports,
+                    })
+                );
+                tx.recentBlockhash = blockhash;
+                tx.feePayer = new solanaWeb3.PublicKey(walletAddress);
+                const { signature } = await activeProvider.signAndSendTransaction(tx);
+                if(type !== 100) {
+                    gridData[selectedKey] = document.getElementById('nationSelect').value;
+                    gridPrices[selectedKey] = price * 1.25;
+                    localStorage.setItem('border_data_v8', JSON.stringify(gridData));
+                    localStorage.setItem('border_prices_v8', JSON.stringify(gridPrices));
+                    render();
+                }
+                closePopup();
+            } catch (err) { console.error(err); }
+        }
+
+        function closePopup() { popup.style.display = 'none'; }
+
+        canvas.addEventListener('mousemove', e => {
+            updateIntel(e);
+            if (isDragging) {
+                moved = true;
+                originX += e.clientX - startX;
+                originY += e.clientY - startY;
+                startX = e.clientX; startY = e.clientY;
+                updateTransform();
+                closePopup();
+            }
+        });
+
+        canvas.addEventListener('mousedown', e => { isDragging = true; moved = false; startX = e.clientX; startY = e.clientY; });
+        canvas.addEventListener('mouseup', e => {
+            isDragging = false;
+            if (!moved) {
+                const info = updateIntel(e);
+                if (info.isOcean) {
+                    alert("MARITIME LAW: No conquest allowed in international waters!");
+                    return;
+                }
+                selectedKey = info.key;
+                popup.style.left = `${e.clientX + 5}px`;
+                popup.style.top = `${e.clientY + 5}px`;
+                document.getElementById('pop-price').innerText = (gridPrices[selectedKey] || 1.00).toFixed(2) + " USD";
+                popup.style.display = 'block';
+            }
+        });
+
+        function updateTransform() { container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
+        window.addEventListener('wheel', e => {
+            const old = scale;
+            scale = Math.min(Math.max(0.05, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 40);
+            originX = e.clientX - (e.clientX - originX) * (scale / old);
+            originY = e.clientY - (e.clientY - originY) * (scale / old);
+            updateTransform();
+        }, { passive: false });
+
+        const mapImg = new Image(); 
+        mapImg.crossOrigin = "anonymous";
+        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
+        mapImg.onload = () => { 
+            mapLoaded = true; 
+            render(); 
+            updateTransform(); 
+            document.getElementById('loading').style.display = 'none'; 
+        };
+
+        function render() {
+            ctx.clearRect(0, 0, W, H);
+            ctx.drawImage(mapImg, 0, 0, W, H);
+            for (let key in gridData) {
+                let [c, r] = key.split(',').map(Number);
+                const img = flagCache[gridData[key]];
+                if(img) ctx.drawImage(img, c * SLOT, r * SLOT, SLOT, SLOT);
+            }
+        }
+
+        async function init() {
+            const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
+            const data = await res.json();
+            data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
+                let opt = document.createElement('option');
+                opt.value = c.cca2.toLowerCase(); opt.textContent = c.name.common.toUpperCase();
+                document.getElementById('nationSelect').appendChild(opt);
+                const img = new Image(); img.crossOrigin = "anonymous";
+                img.src = `https://flagcdn.com/w80/${opt.value}.png`;
+                img.onload = () => { flagCache[opt.value] = img; render(); };
+            });
+            try {
+                const pRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
+                const pData = await pRes.json();
+                if(pData.solana.usd) CURRENT_SOL_USD = pData.solana.usd;
+            } catch(e) {}
+        }
+        init();
+    </script>
+</body>
+</html>
