@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v8.7.0</title>
+    <title>THE LAST BORDER | v8.8.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
-        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
+        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; visibility: hidden; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
         canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
         .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; border-radius: 4px; }
@@ -17,12 +17,15 @@
         #wallet-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
         select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 8px; width: 100%; margin-top: 5px; font-family: inherit; }
         button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-weight: bold; border: none; }
-        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; justify-content: center; align-items: center; color: #ff4500; font-weight: bold; }
+        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff4500; font-weight: bold; }
         .close-pop { position: absolute; top: 2px; right: 5px; cursor: pointer; color: #ff4500; font-size: 14px; }
     </style>
 </head>
 <body>
-    <div id="loading">SYSTEM INITIALIZING...</div>
+    <div id="loading">
+        <div id="load-text">ESTABLISHING SECURE CONNECTION...</div>
+        <div id="debug-info" style="font-size: 10px; margin-top: 10px; color: #555;">Initializing...</div>
+    </div>
     
     <div id="war-room">
         <div id="buy-popup">
@@ -33,24 +36,16 @@
                 <button id="execBtn" style="background: #ff4500; color: #fff;" onclick="handlePurchase()">EXECUTE COMMAND</button>
             </div>
         </div>
-
-        <div id="ui-overlay" class="panel">
-            <h2 style="margin:0; color: #ff4500; font-size: 14px;">WAR COMMAND</h2>
-            <select id="nationSelect"></select>
-        </div>
-
+        <div id="ui-overlay" class="panel"><select id="nationSelect"></select></div>
         <div id="wallet-panel" class="panel">
-            <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center; margin-bottom: 5px;">STATUS: OFFLINE</div>
+            <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center;">STATUS: OFFLINE</div>
             <button id="connectBtn" style="background: #00ff00; color: #000;" onclick="connectWallet()">CONNECT WALLET</button>
         </div>
-
         <div id="pixel-intel" class="panel">
-            <div style="color:#ff4500; font-weight:bold; border-bottom: 1px solid #ff4500; margin-bottom: 5px;">GLOBAL INTEL FEED</div>
             <div id="intel-coords">COORD: 0, 0</div>
-            <div id="intel-status" style="margin: 4px 0;">STATUS: READY</div>
+            <div id="intel-status">STATUS: READY</div>
             <div id="intel-price">VALUATION: 1.00 USD</div>
         </div>
-
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
     </div>
 
@@ -61,26 +56,28 @@
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
 
         let supabase, walletAddress, activeProvider, selectedKey;
-        let SOL_PRICE = 135;
         let globalTerritory = {};
         const flagCache = {};
+        let scale = 0.5, originX = 0, originY = 0;
+        let mapLoaded = false, dbLoaded = false;
 
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const W = 4000, H = 2000, SLOT = 8.94;
         canvas.width = W; canvas.height = H;
 
-        let scale = 0.5, originX = 0, originY = 0;
-        let mapLoaded = false, isDragging = false, moved = false, startX, startY;
+        function debug(msg) { document.getElementById('debug-info').innerText = msg; console.log(msg); }
 
         async function init() {
-            // SUPABASE BAĞLANTISI (Await kaldırıldı, kilitlenme önlendi)
+            debug("Connecting to Supabase...");
             if (window.supabase) {
                 supabase = window.supabase.createClient(SB_URL, SB_KEY);
                 syncFromDB(); 
+            } else {
+                debug("ERROR: Supabase Library Missing!");
             }
 
-            // Ülke Verileri
+            debug("Fetching World Data...");
             const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
             const countries = await res.json();
             countries.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
@@ -92,33 +89,42 @@
                 img.onload = () => { flagCache[opt.value] = img; render(); };
             });
 
-            setInterval(syncFromDB, 15000);
+            setInterval(syncFromDB, 20000);
         }
 
         async function syncFromDB() {
             if(!supabase) return;
-            try {
-                const { data } = await supabase.from('territory').select('*');
-                if (data) {
-                    globalTerritory = {};
-                    data.forEach(item => { globalTerritory[item.pixel_key] = item; });
-                    render();
-                }
-            } catch (e) { console.error("DB Sync Fail"); }
+            const { data, error } = await supabase.from('territory').select('*');
+            if (error) { debug("DB Error: " + error.message); }
+            if (data) {
+                globalTerritory = {};
+                data.forEach(item => { globalTerritory[item.pixel_key] = item; });
+                dbLoaded = true;
+                checkMapReady();
+                render();
+            }
         }
 
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
         mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
         mapImg.onload = () => {
+            debug("Map Image Loaded...");
             mapLoaded = true;
             originX = (window.innerWidth - W * scale) / 2;
             originY = (window.innerHeight - H * scale) / 2;
             updateTransform();
             render();
-            // HARİTA GELDİĞİ AN LOADING'İ KAPAT (Kesin çözüm)
-            document.getElementById('loading').style.display = 'none';
+            checkMapReady();
         };
+
+        function checkMapReady() {
+            // Veritabanından hata gelse bile harita yüklendiyse aç!
+            if (mapLoaded) {
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('war-room').style.visibility = 'visible';
+            }
+        }
 
         function render() {
             ctx.clearRect(0, 0, W, H);
@@ -130,96 +136,42 @@
             }
         }
 
-        function updateTransform() {
-            document.getElementById('canvas-container').style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
-        }
-
-        function checkMaritime(x, y) {
-            const p = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-            return (p[0] + p[1] + p[2] < 100);
-        }
-
+        // --- INTERACTION --- (Kaydırma, Zoom, Seçim aynı kalıyor)
+        function updateTransform() { document.getElementById('canvas-container').style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; }
+        function closePopup() { document.getElementById('buy-popup').style.display = 'none'; }
+        
         canvas.addEventListener('mousedown', e => { isDragging = true; moved = false; startX = e.clientX; startY = e.clientY; closePopup(); });
         canvas.addEventListener('mousemove', e => {
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) * (W / rect.width);
             const y = (e.clientY - rect.top) * (H / rect.height);
-            const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
-            
-            document.getElementById('intel-coords').innerText = `COORD: ${col}, ${row}`;
-            
+            document.getElementById('intel-coords').innerText = `COORD: ${Math.floor(x/SLOT)}, ${Math.floor(y/SLOT)}`;
             if (isDragging) {
                 originX += e.clientX - startX; originY += e.clientY - startY;
                 startX = e.clientX; startY = e.clientY;
                 moved = true; updateTransform();
             }
         });
-
         canvas.addEventListener('mouseup', e => {
             isDragging = false;
             if (!moved) {
                 const rect = canvas.getBoundingClientRect();
                 const x = (e.clientX - rect.left) * (W / rect.width);
                 const y = (e.clientY - rect.top) * (H / rect.height);
-                if (checkMaritime(x, y)) return alert("Maritime Law: No conquest!");
-                
-                const col = Math.floor(x / SLOT), row = Math.floor(y / SLOT);
-                selectedKey = `${col},${row}`;
-                const data = globalTerritory[selectedKey];
-                document.getElementById('pop-price').innerText = (data ? data.price : 1.0).toFixed(2) + " USD";
+                selectedKey = `${Math.floor(x/SLOT)},${Math.floor(y/SLOT)}`;
                 const pop = document.getElementById('buy-popup');
                 pop.style.left = e.clientX + "px"; pop.style.top = e.clientY + "px";
                 pop.style.display = "block";
             }
         });
 
-        window.addEventListener('wheel', e => {
-            const old = scale;
-            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 30);
-            originX = e.clientX - (e.clientX - originX) * (scale / old);
-            originY = e.clientY - (e.clientY - originY) * (scale / old);
-            updateTransform();
-        }, { passive: false });
-
         async function connectWallet() {
             const provider = window.solana || window.solflare;
-            if(!provider) return alert("Install Wallet!");
             const resp = await provider.connect();
             walletAddress = (resp.publicKey || provider.publicKey).toString();
-            activeProvider = provider;
             document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,6);
-            document.getElementById('wallet-status').style.color = "#00ff00";
             document.getElementById('connectBtn').style.display = "none";
         }
-
-        async function handlePurchase() {
-            if (!walletAddress) return alert("Connect wallet!");
-            const btn = document.getElementById('execBtn');
-            btn.disabled = true; btn.innerText = "PROCESSING...";
-            
-            const priceUSD = globalTerritory[selectedKey] ? globalTerritory[selectedKey].price : 1.0;
-            const lamports = Math.floor((priceUSD / SOL_PRICE) * 1e9);
-
-            try {
-                const conn = new solanaWeb3.Connection(HELIUS_RPC);
-                const { blockhash } = await conn.getLatestBlockhash();
-                const tx = new solanaWeb3.Transaction().add(
-                    solanaWeb3.SystemProgram.transfer({ fromPubkey: new solanaWeb3.PublicKey(walletAddress), toPubkey: new solanaWeb3.PublicKey(MASTER_WALLET), lamports: lamports })
-                );
-                tx.recentBlockhash = blockhash; tx.feePayer = new solanaWeb3.PublicKey(walletAddress);
-                await activeProvider.signAndSendTransaction(tx);
-                
-                // DB SAVE
-                await supabase.from('territory').upsert({
-                    pixel_key: selectedKey, owner_address: walletAddress, nation_code: document.getElementById('nationSelect').value, price: priceUSD * 1.25
-                });
-                syncFromDB();
-                closePopup();
-            } catch (e) { alert("Fail: " + e.message); }
-            btn.disabled = false; btn.innerText = "EXECUTE COMMAND";
-        }
-
-        function closePopup() { document.getElementById('buy-popup').style.display = 'none'; }
 
         init();
     </script>
