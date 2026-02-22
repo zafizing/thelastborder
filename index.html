@@ -1,8 +1,9 @@
+ (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
 diff --git a/index.html b/index.html
-index 7afb01bb39142313e725e70b5930e4ddd4583bb3..8d9f0f101fe0b0a29f1fcb8fc34af2064d4b1968 100644
+index 7afb01bb39142313e725e70b5930e4ddd4583bb3..2d29d457b959055332bbba5d05a9353135376086 100644
 --- a/index.html
 +++ b/index.html
-@@ -1,200 +1,618 @@
+@@ -1,200 +1,630 @@
 -<!DOCTYPE html>
 -<html lang="en">
 -<head>
@@ -439,8 +440,16 @@ index 7afb01bb39142313e725e70b5930e4ddd4583bb3..8d9f0f101fe0b0a29f1fcb8fc34af206
 +        if (gx < 0 || gy < 0 || gx >= GRID_W || gy >= GRID_H) return true;
 +        const px = gx * SLOT + SLOT * 0.5;
 +        const py = gy * SLOT + SLOT * 0.5;
-+        const data = offCtx.getImageData(px, py, 1, 1).data;
-+        return isSeaRgb(data[0], data[1], data[2]);
++
++        try {
++          const data = offCtx.getImageData(px, py, 1, 1).data;
++          return isSeaRgb(data[0], data[1], data[2]);
++        } catch (err) {
++          console.warn("Terrain sampling blocked (likely CORS taint), fallback mode forced.", err);
++          drawFallbackMap();
++          const fallback = offCtx.getImageData(px, py, 1, 1).data;
++          return isSeaRgb(fallback[0], fallback[1], fallback[2]);
++        }
 +      }
 +
 +      function drawFallbackMap() {
@@ -497,12 +506,16 @@ index 7afb01bb39142313e725e70b5930e4ddd4583bb3..8d9f0f101fe0b0a29f1fcb8fc34af206
 +          try {
 +            offCtx.clearRect(0, 0, WORLD_W, WORLD_H);
 +            offCtx.drawImage(img, 0, 0, WORLD_W, WORLD_H);
++
++            // Verify pixel reads are allowed (prevents tainted-canvas crashes).
++            offCtx.getImageData(0, 0, 1, 1);
++
 +            state.mapReady = true;
 +            state.terrainMaskReady = true;
 +            state.fallbackMode = false;
 +            modeLabel.textContent = "MODE: MAP";
 +          } catch (err) {
-+            console.error("Map draw error:", err);
++            console.error("Map draw/sample error, fallback mode active:", err);
 +            drawFallbackMap();
 +          }
 +        };
@@ -821,3 +834,6 @@ index 7afb01bb39142313e725e70b5930e4ddd4583bb3..8d9f0f101fe0b0a29f1fcb8fc34af206
 +  </script>
 +</body>
 +</html>
+ 
+EOF
+)
