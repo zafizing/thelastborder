@@ -2,12 +2,11 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v8.4.4 CRYSTAL GRID</title>
+    <title>THE LAST BORDER | v8.4.5 CRYSTAL GRID & FREE PAINT</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        /* Harita ve Bayrak Netliği İçin Kritik Ayar */
         canvas { 
             background-color: #0d0d0d; 
             image-rendering: crisp-edges;
@@ -75,43 +74,52 @@
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
 
     <script>
+        // --- Sabitler ve Global Değişkenler ---
         const HELIUS_KEY = "ec1aa17e-f949-4ab9-a2b2-0a16a3af2cb2"; 
         const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`;
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
-        let CURRENT_SOL_USD = 135;
+        let CURRENT_SOL_USD = 135; // Varsayılan Solana fiyatı
 
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         const container = document.getElementById('canvas-container');
         const popup = document.getElementById('buy-popup');
-        const W = 4000, H = 2000, SLOT = 8.94;
+        const W = 4000, H = 2000, SLOT = 8.94; // Dünya ve piksel boyutları
         canvas.width = W; canvas.height = H;
 
         let gridData = JSON.parse(localStorage.getItem('border_data_v8') || '{}');
         let gridPrices = JSON.parse(localStorage.getItem('border_prices_v8') || '{}');
-        const flagCache = {};
-        let walletAddress = null;
-        let activeProvider = null;
-        let selectedKey = null;
-        let mapLoaded = false;
-        let needsRender = true; 
+        const flagCache = {}; // Bayrak görsellerini önbelleğe almak için
+        let walletAddress = null; // Bağlı cüzdan adresi
+        let activeProvider = null; // Aktif cüzdan sağlayıcısı (Phantom/Solflare)
+        let selectedKey = null; // Tıklanan pikselin anahtarı ('col,row')
+        let mapLoaded = false; // Haritanın yüklenip yüklenmediğini gösterir
+        let needsRender = true; // Sadece değişim olduğunda yeniden çizmek için
 
-        let startX, startY, isDragging = false, dragThreshold = 0;
-        let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
+        let startX, startY, isDragging = false, dragThreshold = 0; // Sürükleme durumu ve eşiği
+        let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2; // Zoom ve Pan değerleri
 
+        // --- Cüzdan Bağlantısı ---
         async function connectWallet() {
-            const provider = window.solflare || window.solana;
-            if (!provider) return alert("Solana wallet required!");
-            try {
-                const resp = await provider.connect();
-                walletAddress = (resp.publicKey || provider.publicKey).toString();
-                activeProvider = provider;
-                document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,8);
-                document.getElementById('wallet-status').style.color = "#00ff00";
-                document.getElementById('connectBtn').style.display = "none";
-            } catch (err) { console.error(err); }
+            // Cüzdan bağlama kısmı şimdilik pasif, sadece lokal boyama için
+            alert("Wallet connection is temporarily disabled for local painting mode.");
+            document.getElementById('wallet-status').innerText = "STATUS: LOCAL PAINT";
+            document.getElementById('wallet-status').style.color = "#ffff00"; // Sarı renk
+            document.getElementById('connectBtn').style.display = "none";
+            // Normalde burada Solana cüzdanına bağlanır
+            // const provider = window.solflare || window.solana;
+            // if (!provider) return alert("Solana wallet required!");
+            // try {
+            //     const resp = await provider.connect();
+            //     walletAddress = (resp.publicKey || provider.publicKey).toString();
+            //     activeProvider = provider;
+            //     document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,8);
+            //     document.getElementById('wallet-status').style.color = "#00ff00";
+            //     document.getElementById('connectBtn').style.display = "none";
+            // } catch (err) { console.error(err); }
         }
 
+        // --- Ekran Koordinatlarını Canvas Koordinatlarına Dönüştürme ---
         function getCanvasCoords(clientX, clientY) {
             const rect = canvas.getBoundingClientRect();
             const x = (clientX - rect.left) * (canvas.width / rect.width);
@@ -119,13 +127,16 @@
             return { x, y };
         }
 
+        // --- Deniz Alanı Kontrolü (Piksel Rengi ile) ---
         function checkMaritime(x, y) {
-            if (!mapLoaded) return false;
-            if (x < 0 || x >= W || y < 0 || y >= H) return true;
+            if (!mapLoaded) return false; // Harita yüklenmediyse deniz kontrolü yapma
+            if (x < 0 || x >= W || y < 0 || y >= H) return true; // Canvas dışı deniz sayılır
             const pixel = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
+            // Harita üzerindeki siyah bölgeler (okyanuslar) için RGB toplamı düşük olacaktır.
             return (pixel[0] + pixel[1] + pixel[2] < 100); 
         }
 
+        // --- Canlı Intel Paneli Güncelleme ---
         function updateIntel(e) {
             const coords = getCanvasCoords(e.clientX, e.clientY);
             const col = Math.floor(coords.x / SLOT);
@@ -148,63 +159,64 @@
             return { isOcean, key };
         }
 
+        // --- Satın Alma / Boyama İşlemi ---
         async function handlePurchase(type) {
-            if (!walletAddress) return alert("First connect your wallet!");
-            const price = (type === 100) ? 100 : (gridPrices[selectedKey] || 1.00);
-            const lamports = Math.floor((price / CURRENT_SOL_USD) * solanaWeb3.LAMPORTS_PER_SOL);
+            // Cüzdan kontrolü şimdilik pasif (geçici boyama izni)
+            // if (!walletAddress) return alert("First connect your wallet!");
 
-            try {
-                const connection = new solanaWeb3.Connection(HELIUS_RPC, 'confirmed');
-                const { blockhash } = await connection.getLatestBlockhash('finalized');
-                const tx = new solanaWeb3.Transaction().add(
-                    solanaWeb3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 2500 }),
-                    solanaWeb3.SystemProgram.transfer({
-                        fromPubkey: new solanaWeb3.PublicKey(walletAddress),
-                        toPubkey: new solanaWeb3.PublicKey(MASTER_WALLET),
-                        lamports: lamports,
-                    })
-                );
-                tx.recentBlockhash = blockhash;
-                tx.feePayer = new solanaWeb3.PublicKey(walletAddress);
-                const { signature } = await activeProvider.signAndSendTransaction(tx);
-                
-                if(type !== 100) {
-                    gridData[selectedKey] = document.getElementById('nationSelect').value;
-                    gridPrices[selectedKey] = price * 1.25;
-                    localStorage.setItem('border_data_v8', JSON.stringify(gridData));
-                    localStorage.setItem('border_prices_v8', JSON.stringify(gridPrices));
-                    needsRender = true;
+            // Lokal boyama izni verildiği için direkt pikseli boyuyoruz
+            if(type !== 100) { // Piksel boyama işlemi
+                gridData[selectedKey] = document.getElementById('nationSelect').value;
+                gridPrices[selectedKey] = (gridPrices[selectedKey] || 1.00) * 1.25; // Fiyatı artır
+                localStorage.setItem('border_data_v8', JSON.stringify(gridData));
+                localStorage.setItem('border_prices_v8', JSON.stringify(gridPrices));
+                needsRender = true; // Yeniden çizim gerekli
+            } else { // Eyalet kurma işlemi (şimdilik sadece UI simülasyonu)
+                const customName = document.getElementById('customName').value;
+                const customFlag = document.getElementById('customFlag').value;
+                if(customName && customFlag) {
+                    // Normalde buraya state oluşturma ve bayrak yükleme mantığı gelir
+                    alert(`STATE ESTABLISHED: ${customName} with flag from ${customFlag}! (Simulated)`);
+                } else {
+                    alert("Please provide both nation name and flag URL to establish a state.");
                 }
-                closePopup();
-            } catch (err) { console.error(err); }
+            }
+            closePopup();
+
+            // Normalde burada Solana transaction'ı gönderilir
+            // const price = (type === 100) ? 100 : (gridPrices[selectedKey] || 1.00);
+            // const lamports = Math.floor((price / CURRENT_SOL_USD) * solanaWeb3.LAMPORTS_PER_SOL);
+            // try { /* Solana transfer kodu */ } catch (err) { console.error(err); }
         }
 
+        // --- Popup Kapatma ---
         function closePopup() { popup.style.display = 'none'; }
 
+        // --- Mouse Olayları (Pan) ---
         canvas.addEventListener('mousemove', e => {
-            updateIntel(e);
+            updateIntel(e); // Intel panelini güncelle
             if (isDragging) {
                 const dx = e.clientX - startX;
                 const dy = e.clientY - startY;
-                dragThreshold += Math.abs(dx) + Math.abs(dy);
+                dragThreshold += Math.abs(dx) + Math.abs(dy); // Sürükleme mesafesini takip et
                 originX += dx;
                 originY += dy;
                 startX = e.clientX; startY = e.clientY;
-                updateTransform();
-                closePopup();
+                updateTransform(); // Transformu güncelle
+                closePopup(); // Popup'ı kapat
             }
         });
 
         canvas.addEventListener('mousedown', e => { 
             isDragging = true; 
-            dragThreshold = 0; 
+            dragThreshold = 0; // Sürükleme eşiğini sıfırla
             startX = e.clientX; 
             startY = e.clientY; 
         });
 
         canvas.addEventListener('mouseup', e => {
             isDragging = false;
-            if (dragThreshold < 5) {
+            if (dragThreshold < 5) { // Eğer fare 5 pikselden az hareket ettiyse tıklama olarak say
                 const info = updateIntel(e);
                 if (info.isOcean) {
                     alert("MARITIME LAW: No conquest allowed in international waters!");
@@ -218,28 +230,47 @@
             }
         });
 
+        // --- Transform Güncelleme (Pan & Zoom) ---
         function updateTransform() { 
             container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; 
-            needsRender = true; // Zoom değiştiğinde ızgara netliği için render tazele
+            needsRender = true; // Transform değiştiğinde yeniden çizim gerekli
         }
 
+        // --- Mouse Tekerleği Olayı (Zoom) ---
         window.addEventListener('wheel', e => {
+            e.preventDefault(); // Varsayılan kaydırma davranışını engelle
             const old = scale;
-            scale = Math.min(Math.max(0.05, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 40);
+            scale = Math.min(Math.max(0.05, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 40); // Zoom limitleri (0.05x - 40x)
+            // Zoom merkezi fare imleci olacak şekilde origin'i ayarla
             originX = e.clientX - (e.clientX - originX) * (scale / old);
             originY = e.clientY - (e.clientY - originY) * (scale / old);
-            updateTransform();
-            closePopup();
-        }, { passive: false });
+            updateTransform(); // Transformu güncelle
+            closePopup(); // Zoom yaparken popup'ı kapat
+        }, { passive: false }); // Passive: false, preventDefault'un çalışmasını sağlar
 
+        // --- Harita Yükleme ---
         const mapImg = new Image(); 
         mapImg.crossOrigin = "anonymous";
-        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
+        // Daha yüksek çözünürlüklü ve genel kabul görmüş bir harita URL'i
+        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/4/4b/World_map_blank_gmt.svg';
         
-        const loadTimeout = setTimeout(() => { if (!mapLoaded) finishLoading(); }, 5000);
-        mapImg.onload = () => { mapLoaded = true; finishLoading(); };
-        mapImg.onerror = () => finishLoading();
+        // Siyah Ekran Sigortası (5 saniye içinde yüklenmezse fallback)
+        const loadTimeout = setTimeout(() => { 
+            if (!mapLoaded) {
+                console.warn("Map load timeout - switching to fallback mode.");
+                document.getElementById('loading-status').innerText = "MAP DATA FAILED. USING FALLBACK GRID.";
+                finishLoading(); 
+            }
+        }, 5000);
 
+        mapImg.onload = () => { mapLoaded = true; finishLoading(); };
+        mapImg.onerror = () => { // Harita yüklenemezse fallback'e geç
+            console.error("Failed to load map image. Using fallback grid mode.");
+            document.getElementById('loading-status').innerText = "MAP DATA FAILED. USING FALLBACK GRID.";
+            finishLoading();
+        };
+
+        // --- Yükleme Ekranını Kapatma ---
         function finishLoading() {
             clearTimeout(loadTimeout);
             needsRender = true;
@@ -247,21 +278,22 @@
             document.getElementById('loading').style.display = 'none';
         }
 
-        // --- GELİŞMİŞ RENDER (GRID & CRYSTAL NETLİK) ---
+        // --- Ana Render Döngüsü ---
         function renderLoop() {
             if (needsRender) {
-                // Netlik ayarları
-                ctx.imageSmoothingEnabled = false;
+                ctx.imageSmoothingEnabled = false; // Pixelated görünüm için
+
                 ctx.clearRect(0, 0, W, H);
 
                 if (mapLoaded) {
                     ctx.drawImage(mapImg, 0, 0, W, H);
                 } else {
-                    ctx.fillStyle = "#111";
+                    // Harita yüklenmediyse yedek koyu gri bir zemin çiz
+                    ctx.fillStyle = "#1a1a1a";
                     ctx.fillRect(0,0,W,H);
                 }
                 
-                // BAYRAKLARI ÇİZ
+                // --- Bayrakları Çiz ---
                 for (let key in gridData) {
                     let [c, r] = key.split(',').map(Number);
                     const img = flagCache[gridData[key]];
@@ -270,29 +302,33 @@
                     }
                 }
 
-                // GÖZ YORMAYAN IZGARA (Sadece zoom > 0.8 ise)
-                if (scale > 0.8) {
-                    ctx.strokeStyle = "rgba(0, 255, 0, 0.15)";
-                    ctx.lineWidth = 0.5;
-                    ctx.beginPath();
-                    // Performans için sadece görünür alanı çizmek mantıklı ama 
-                    // basitlik için 4000x2000 gridi optimize şekilde çiziyoruz
-                    for(let x = 0; x <= W; x += SLOT) {
-                        ctx.moveTo(x, 0); ctx.lineTo(x, H);
-                    }
-                    for(let y = 0; y <= H; y += SLOT) {
-                        ctx.moveTo(0, y); ctx.lineTo(W, y);
-                    }
-                    ctx.stroke();
-                }
+                // --- GÖZ YORMAYAN VE HER ZAMAN GÖRÜNÜR IZGARA ---
+                // Zoom seviyesine göre şeffaflık ayarı
+                let gridAlpha = Math.min(1, Math.max(0.05, scale / 5)); // Uzaktan çok şeffaf, yaklaştıkça daha belirgin
+                if (!mapLoaded) gridAlpha = Math.max(0.1, gridAlpha); // Fallback modda biraz daha belirgin olsun
 
-                needsRender = false;
+                ctx.strokeStyle = `rgba(0, 255, 0, ${gridAlpha})`;
+                ctx.lineWidth = 0.5 / scale; // Zoom yaptıkça çizgi kalınlığı orantılı azalsın
+                ctx.beginPath();
+                
+                // Izgarayı çiz
+                for(let x = 0; x <= W; x += SLOT) {
+                    ctx.moveTo(x, 0); ctx.lineTo(x, H);
+                }
+                for(let y = 0; y <= H; y += SLOT) {
+                    ctx.moveTo(0, y); ctx.lineTo(W, y);
+                }
+                ctx.stroke();
+
+                needsRender = false; // Çizim tamamlandı
             }
-            requestAnimationFrame(renderLoop);
+            requestAnimationFrame(renderLoop); // Bir sonraki kareyi iste
         }
 
+        // --- Başlangıç Yükleme Fonksiyonu ---
         async function init() {
             try {
+                // Ülke listesi ve bayraklarını çek
                 const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
                 const data = await res.json();
                 const sel = document.getElementById('nationSelect');
@@ -305,19 +341,25 @@
                     const img = new Image(); 
                     img.crossOrigin = "anonymous";
                     img.src = `https://flagcdn.com/w80/${opt.value}.png`;
-                    img.onload = () => { flagCache[opt.value] = img; needsRender = true; };
+                    img.onload = () => { flagCache[opt.value] = img; needsRender = true; }; // Bayrak yüklendiğinde render
+                    img.onerror = () => console.warn(`Failed to load flag for ${c.cca2}`); // Hata durumunda log
                 });
 
+                // Solana fiyatını çek (şimdilik aktif değil ama kodda duruyor)
                 const pRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
                 const pData = await pRes.json();
                 if(pData.solana.usd) CURRENT_SOL_USD = pData.solana.usd;
-            } catch(e) { console.error("Init failed", e); }
+            } catch(e) { 
+                console.error("Initialization failed:", e); 
+                document.getElementById('loading-status').innerText = "INIT FAILED. CHECK CONSOLE.";
+            }
             
-            requestAnimationFrame(renderLoop);
+            requestAnimationFrame(renderLoop); // Render döngüsünü başlat
         }
         
-        init();
-        window.onresize = updateTransform;
+        init(); // Uygulamayı başlat
+        window.onresize = updateTransform; // Pencere boyutu değiştiğinde transformu güncelle
+        window.oncontextmenu = e => e.preventDefault(); // Sağ tık menüsünü engelle
     </script>
 </body>
 </html>
