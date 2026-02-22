@@ -1,441 +1,170 @@
- (cd "$(git rev-parse --show-toplevel)" && git apply --3way <<'EOF' 
-diff --git a/index.html b/index.html
-index 7afb01bb39142313e725e70b5930e4ddd4583bb3..1fffcd689bb571cc9c1819f6f24410951ac000f6 100644
---- a/index.html
-+++ b/index.html
-@@ -1,200 +1,232 @@
--<!DOCTYPE html>
--<html lang="en">
--<head>
--    <meta charset="UTF-8">
--    <title>THE LAST BORDER | v15</title>
--    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
--    <style>
--        body, html { background: #020205; color: #0f0; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
--        canvas { display: block; background-color: #000; cursor: crosshair; }
--        .ui-panel { position: fixed; z-index: 100; background: rgba(0, 0, 0, 0.9); padding: 15px; border: 1px solid #0f0; border-radius: 4px; pointer-events: none; }
--        #top-left { top: 20px; left: 20px; width: 220px; pointer-events: auto; }
--        #top-right { top: 20px; right: 20px; width: 240px; pointer-events: auto; }
--        #bottom-right { bottom: 20px; right: 20px; font-size: 11px; }
--        #popup { position: fixed; display: none; background: #000; border: 2px solid #ff4500; padding: 15px; z-index: 200; text-align: center; color: #fff; min-width: 160px; pointer-events: auto; }
--        button { background: #0f0; color: #000; border: none; padding: 10px; width: 100%; cursor: pointer; font-weight: bold; margin-top: 10px; font-family: inherit; }
--        select { background: #000; color: #0f0; border: 1px solid #0f0; width: 100%; padding: 8px; margin-top: 5px; }
--    </style>
--</head>
--<body>
--
--    <div id="top-left" class="ui-panel">
--        <div style="color: #ff4500; font-weight: bold;">WAR CONSOLE v15</div>
--        <select id="nationSelect"></select>
--    </div>
--
--    <div id="top-right" class="ui-panel">
--        <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center;">SYSTEM: READY</div>
--        <button id="connectBtn" onclick="connectWallet()">CONNECT WALLET</button>
--    </div>
--
--    <div id="bottom-right" class="ui-panel">
--        <div id="coords">X: 0, Y: 0</div>
--        <div id="terrain" style="color:#0f0">TERRAIN: LAND</div>
--    </div>
--
--    <div id="popup">
--        <div id="pop-coord" style="font-size: 11px; color: #ff4500;">COORD: 0, 0</div>
--        <button id="conquerBtn" onclick="localConquer()">PAINT FLAG</button>
--        <button onclick="closePopup()" style="background:#333; color:#fff;">CANCEL</button>
--    </div>
--
--    <canvas id="warMap"></canvas>
--
--    <script>
--        const canvas = document.getElementById('warMap');
--        const ctx = canvas.getContext('2d', { willReadFrequently: true });
--        
--        const GRID_W = 400, GRID_H = 250, SLOT = 10; 
--        const WORLD_W = 4000, WORLD_H = 2500;
--
--        let scale = 0.4, offsetX = 100, offsetY = 100;
--        let isDragging = false, startX, startY;
--        let selectedKey = null, localTerritories = {}, flagCache = {};
--
--        // ESKİ HARİTA (Sınırları olan, net harita)
--        const mapImg = new Image();
--        mapImg.crossOrigin = "anonymous";
--        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/b/b3/World-map-2004-cia-factbook.png';
--
--        async function init() {
--            canvas.width = window.innerWidth;
--            canvas.height = window.innerHeight;
--
--            // Ülke Listesi
--            const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
--            const countries = await res.json();
--            const sel = document.getElementById('nationSelect');
--            countries.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
--                const opt = document.createElement('option');
--                opt.value = c.cca2.toLowerCase();
--                opt.textContent = c.name.common.toUpperCase();
--                sel.appendChild(opt);
--                
--                const img = new Image();
--                img.crossOrigin = "anonymous";
--                img.src = `https://flagcdn.com/w80/${opt.value}.png`;
--                img.onload = () => { flagCache[opt.value] = img; draw(); };
--            });
--
--            mapImg.onload = draw;
--            draw();
--        }
--
--        function draw() {
--            ctx.fillStyle = "#020205";
--            ctx.fillRect(0, 0, canvas.width, canvas.height);
--
--            ctx.save();
--            ctx.translate(offsetX, offsetY);
--            ctx.scale(scale, scale);
--
--            if (mapImg.complete) {
--                ctx.drawImage(mapImg, 0, 0, WORLD_W, WORLD_H);
--            }
--
--            // ESKİ IZGARA SİSTEMİ
--            ctx.strokeStyle = "rgba(0, 255, 0, 0.15)";
--            ctx.lineWidth = 1;
--            ctx.beginPath();
--            for(let x=0; x<=WORLD_W; x+=SLOT*5) { ctx.moveTo(x,0); ctx.lineTo(x,WORLD_H); }
--            for(let y=0; y<=WORLD_H; y+=SLOT*5) { ctx.moveTo(0,y); ctx.lineTo(WORLD_W,y); }
--            ctx.stroke();
--
--            // Bayrakları çiz
--            for (let key in localTerritories) {
--                const [gx, gy] = key.split(',').map(Number);
--                const code = localTerritories[key];
--                if (flagCache[code]) {
--                    ctx.drawImage(flagCache[code], gx * SLOT, gy * SLOT, SLOT, SLOT);
--                }
--            }
--
--            ctx.restore();
--        }
--
--        // --- KESİN ÇÖZÜM: KAYDIRMA (PAN) ---
--        canvas.onmousedown = (e) => {
--            if (e.button === 2) { 
--                isDragging = true;
--                startX = e.clientX - offsetX;
--                startY = e.clientY - offsetY;
--                canvas.style.cursor = "grabbing";
--            }
--        };
--
--        window.onmouseup = () => { 
--            isDragging = false; 
--            canvas.style.cursor = "crosshair"; 
--        };
--
--        canvas.onmousemove = (e) => {
--            if (isDragging) {
--                offsetX = e.clientX - startX;
--                offsetY = e.clientY - startY;
--                draw();
--            }
--
--            const worldX = (e.clientX - offsetX) / scale;
--            const worldY = (e.clientY - offsetY) / scale;
--            const gx = Math.floor(worldX / SLOT);
--            const gy = Math.floor(worldY / SLOT);
--
--            if(gx >= 0 && gx < GRID_W && gy >= 0 && gy < GRID_H) {
--                document.getElementById('coords').innerText = `X: ${gx}, Y: ${gy}`;
--                
--                // ARAZİ KONTROLÜ (Mavi = Deniz, Gri/Beyaz = Sınır/Kara)
--                const p = ctx.getImageData(e.clientX, e.clientY, 1, 1).data;
--                const isBlue = p[2] > p[0] && p[2] > p[1] && p[2] > 100;
--                const terrain = document.getElementById('terrain');
--                terrain.innerText = isBlue ? "TERRAIN: SEA (LOCKED)" : "TERRAIN: LAND";
--                terrain.style.color = isBlue ? "#f00" : "#0f0";
--            }
--        };
--
--        canvas.onwheel = (e) => {
--            e.preventDefault();
--            const delta = e.deltaY > 0 ? 0.8 : 1.2;
--            const oldScale = scale;
--            scale = Math.min(Math.max(0.1, scale * delta), 15);
--            offsetX = e.clientX - (e.clientX - offsetX) * (scale / oldScale);
--            offsetY = e.clientY - (e.clientY - offsetY) * (scale / oldScale);
--            draw();
--        };
--
--        canvas.onclick = (e) => {
--            if (isDragging) return;
--            const p = ctx.getImageData(e.clientX, e.clientY, 1, 1).data;
--            const isBlue = p[2] > p[0] && p[2] > p[1] && p[2] > 100;
--            if (isBlue) return; // Denize tıklama iptal
--
--            const worldX = (e.clientX - offsetX) / scale;
--            const worldY = (e.clientY - offsetY) / scale;
--            const gx = Math.floor(worldX / SLOT);
--            const gy = Math.floor(worldY / SLOT);
--
--            if(gx < 0 || gx >= GRID_W || gy < 0 || gy >= GRID_H) return;
--
--            selectedKey = `${gx},${gy}`;
--            const pop = document.getElementById('popup');
--            pop.style.left = e.clientX + "px";
--            pop.style.top = e.clientY + "px";
--            pop.style.display = 'block';
--            document.getElementById('pop-coord').innerText = `COORD: ${gx}, ${gy}`;
--        };
--
--        function localConquer() {
--            const code = document.getElementById('nationSelect').value;
--            localTerritories[selectedKey] = code;
--            draw();
--            closePopup();
--        }
--
--        function closePopup() { document.getElementById('popup').style.display = 'none'; }
--        window.oncontextmenu = (e) => e.preventDefault();
--        window.onresize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; draw(); };
--
--        init();
--    </script>
--</body>
--</html>
-+<!DOCTYPE html>
-+<html lang="tr">
-+<head>
-+  <meta charset="UTF-8" />
-+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-+  <title>THE LAST BORDER | TOP GRID</title>
-+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-+  <style>
-+    :root{--bg:#020205;--green:#0f0;--orange:#ff4500;--panel:rgba(0,0,0,.9);--sea:#00c8d4;--land:#d8d3c2;--danger:#ff2f2f}
-+    *{box-sizing:border-box}
-+    html,body{margin:0;height:100%;overflow:hidden;background:#000;color:var(--green);font-family:Courier New,monospace}
-+    #warMap{position:fixed;inset:0;width:100vw;height:100vh;background:#000;display:block;cursor:crosshair}
-+    .panel{position:fixed;z-index:10;background:var(--panel);border:1px solid var(--green);padding:12px;border-radius:8px;backdrop-filter:blur(3px)}
-+    #left{top:16px;left:16px;width:290px} #right{top:16px;right:16px;width:320px} #intel{right:16px;bottom:16px;width:280px}
-+    .title{color:var(--orange);font-weight:700;margin-bottom:8px}
-+    select,button,input{width:100%;margin-top:8px;padding:8px;border:1px solid var(--green);background:#010801;color:var(--green);font-family:inherit;border-radius:6px}
-+    button{cursor:pointer;font-weight:700}
-+    .cta{border-color:var(--orange);color:#fff;background:linear-gradient(180deg,#ff6a31,#b52d00)}
-+    .muted{font-size:12px;color:#91b891}.danger{color:var(--danger)}.ok{color:var(--green)}
-+    #popup{position:fixed;z-index:20;display:none;min-width:230px;background:rgba(0,0,0,.96);border:2px solid var(--orange);padding:12px;border-radius:8px}
-+    #loading{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;flex-direction:column;background:#000;color:var(--orange);font-weight:700}
-+  </style>
-+</head>
-+<body>
-+  <canvas id="warMap"></canvas>
-+
-+  <div id="loading">
-+    <div>CALIBRATING SAT-LINK...</div>
-+    <div id="loadingStatus" class="muted" style="margin-top:8px">SAFE BOOT MODE...</div>
-+  </div>
-+
-+  <section id="left" class="panel">
-+    <div class="title">THE LAST BORDER // WAR ROOM</div>
-+    <div class="muted">400 x 250 grid · 100,000 slot</div>
-+    <select id="nationSelect"></select>
-+    <div id="countryStatus" class="muted">Ülkeler yükleniyor...</div>
-+  </section>
-+
-+  <section id="right" class="panel">
-+    <div class="title">WALLET & DB</div>
-+    <div id="walletStatus" class="muted">Wallet taranıyor...</div>
-+    <button id="connectBtn">CONNECT WALLET</button>
-+    <div id="dbStatus" class="muted">DB hazırlanıyor...</div>
-+  </section>
-+
-+  <section id="intel" class="panel">
-+    <div id="coords">COORD: 0,0</div>
-+    <div id="terrain" class="ok">TERRAIN: LAND</div>
-+    <div id="zoom" class="muted">ZOOM: 1.00x</div>
-+    <div id="mode" class="muted">MODE: FALLBACK GRID</div>
-+  </section>
-+
-+  <div id="popup">
-+    <div class="title">TARGET LOCK</div>
-+    <div id="popCoord">COORD: -</div>
-+    <div id="popTerrain">TERRAIN: -</div>
-+    <div id="popPrice" class="muted">PRICE: 1.00</div>
-+    <button id="conquerBtn" class="cta">CONQUER</button>
-+    <button id="cancelBtn">CANCEL</button>
-+  </div>
-+
-+<script>
-+(() => {
-+  const GRID_W=400, GRID_H=250, SLOT=10, WORLD_W=4000, WORLD_H=2500;
-+  const SUPABASE_URL='https://YOUR_PROJECT.supabase.co';
-+  const SUPABASE_ANON_KEY='YOUR_SUPABASE_ANON_KEY';
-+  const MAP_URL='https://upload.wikimedia.org/wikipedia/commons/b/b3/World-map-2004-cia-factbook.png';
-+
-+  const canvas=document.getElementById('warMap');
-+  const ctx=canvas.getContext('2d',{alpha:false});
-+  const mask=document.createElement('canvas'); mask.width=WORLD_W; mask.height=WORLD_H;
-+  const maskCtx=mask.getContext('2d',{willReadFrequently:true});
-+
-+  const el={
-+    loading:document.getElementById('loading'), loadingStatus:document.getElementById('loadingStatus'),
-+    nation:document.getElementById('nationSelect'), countryStatus:document.getElementById('countryStatus'),
-+    walletStatus:document.getElementById('walletStatus'), dbStatus:document.getElementById('dbStatus'),
-+    connectBtn:document.getElementById('connectBtn'), coords:document.getElementById('coords'), terrain:document.getElementById('terrain'),
-+    zoom:document.getElementById('zoom'), mode:document.getElementById('mode'), popup:document.getElementById('popup'),
-+    popCoord:document.getElementById('popCoord'), popTerrain:document.getElementById('popTerrain'), popPrice:document.getElementById('popPrice'),
-+    conquerBtn:document.getElementById('conquerBtn'), cancelBtn:document.getElementById('cancelBtn')
-+  };
-+
-+  const st={
-+    camera:{scale:.32,min:.1,max:15,offsetX:0,offsetY:0,dragging:false},
-+    selected:null, mapReady:false, fallback:true,
-+    flags:new Map(), territories:new Map(), wallet:null, walletAddress:'-',
-+    supabase:null, db:false
-+  };
-+
-+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
-+  const key=(gx,gy)=>`${gx},${gy}`;
-+  const toWorld=(sx,sy)=>({x:(sx-st.camera.offsetX)/st.camera.scale,y:(sy-st.camera.offsetY)/st.camera.scale});
-+  const toGrid=(wx,wy)=>({gx:Math.floor(wx/SLOT),gy:Math.floor(wy/SLOT)});
-+
-+  function resize(){
-+    canvas.width=innerWidth; canvas.height=innerHeight;
-+    if(st.camera.offsetX===0&&st.camera.offsetY===0){
-+      st.camera.offsetX=(canvas.width-WORLD_W*st.camera.scale)/2;
-+      st.camera.offsetY=(canvas.height-WORLD_H*st.camera.scale)/2;
-+    }
-+  }
-+
-+  function drawFallback(){
-+    maskCtx.fillStyle='#17a6b4'; maskCtx.fillRect(0,0,WORLD_W,WORLD_H);
-+    maskCtx.fillStyle='#d8d3c2'; maskCtx.strokeStyle='#222'; maskCtx.lineWidth=3;
-+    const polys=[[[220,280],[430,180],[740,210],[970,330],[1130,550],[1030,760],[780,820],[550,710],[330,560]],[[980,930],[1160,890],[1310,990],[1280,1230],[1160,1480],[990,1360],[910,1130]],[[1680,220],[1940,170],[2180,260],[2270,390],[2160,550],[1980,590],[1770,520],[1630,380]],[[1900,630],[2070,670],[2160,790],[2120,930],[1990,1020],[1840,910],[1810,760]],[[2460,250],[2820,150],[3320,220],[3620,350],[3550,520],[3110,540],[2720,500],[2480,410]],[[3050,660],[3270,690],[3390,870],[3310,1030],[3130,1100],[2980,980],[2950,790]],[[3360,1730],[3500,1700],[3610,1780],[3550,1880],[3410,1900],[3330,1820]]];
-+    for(const p of polys){maskCtx.beginPath();maskCtx.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)maskCtx.lineTo(p[i][0],p[i][1]);maskCtx.closePath();maskCtx.fill();maskCtx.stroke();}
-+    st.fallback=true; st.mapReady=true; el.mode.textContent='MODE: FALLBACK GRID';
-+  }
-+
-+  function isSeaRGB(r,g,b){return b>=95&&g>=85&&r<=120&&b>r&&b>=g;}
-+  function isSea(gx,gy){
-+    if(gx<0||gy<0||gx>=GRID_W||gy>=GRID_H) return true;
-+    const px=gx*SLOT+5, py=gy*SLOT+5;
-+    try{
-+      const d=maskCtx.getImageData(px,py,1,1).data; return isSeaRGB(d[0],d[1],d[2]);
-+    }catch(err){
-+      console.warn('tainted canvas; forcing fallback',err); drawFallback();
-+      const d=maskCtx.getImageData(px,py,1,1).data; return isSeaRGB(d[0],d[1],d[2]);
-+    }
-+  }
-+
-+  function loadMap(){
-+    const img=new Image(); img.crossOrigin='anonymous';
-+    const timer=setTimeout(()=>{if(!st.mapReady){el.loadingStatus.textContent='MAP TIMEOUT -> FALLBACK GRID';drawFallback();}},5000);
-+    img.onload=()=>{try{maskCtx.clearRect(0,0,WORLD_W,WORLD_H);maskCtx.drawImage(img,0,0,WORLD_W,WORLD_H);maskCtx.getImageData(0,0,1,1);st.fallback=false;st.mapReady=true;el.mode.textContent='MODE: MAP';}catch(e){drawFallback();} finally{clearTimeout(timer);}};
-+    img.onerror=()=>{clearTimeout(timer);drawFallback();};
-+    img.src=MAP_URL;
-+  }
-+
-+  async function loadCountries(){
-+    try{
-+      const res=await fetch('https://restcountries.com/v3.1/all?fields=name,cca2'); if(!res.ok) throw new Error(res.status);
-+      const arr=(await res.json()).filter(c=>c?.cca2&&c?.name?.common).sort((a,b)=>a.name.common.localeCompare(b.name.common));
-+      for(const c of arr){
-+        const code=c.cca2.toLowerCase(); const o=document.createElement('option'); o.value=code; o.textContent=c.name.common.toUpperCase(); el.nation.appendChild(o);
-+        const f=new Image(); f.crossOrigin='anonymous'; f.onload=()=>st.flags.set(code,f); f.onerror=()=>{}; f.src=`https://flagcdn.com/w80/${code}.png`;
-+      }
-+      el.countryStatus.textContent=`${arr.length} ülke yüklendi.`;
-+    }catch(e){
-+      const o=document.createElement('option'); o.value='tr'; o.textContent='TURKEY'; el.nation.appendChild(o);
-+      el.countryStatus.textContent='Ülke API hatası (fallback).'; el.countryStatus.classList.add('danger');
-+    }
-+  }
-+
-+  function detectWallet(){
-+    const providers=[];
-+    if(window.solana?.isPhantom) providers.push(window.solana);
-+    if(window.solflare?.isSolflare) providers.push(window.solflare);
-+    if(Array.isArray(window.solana?.providers)) for(const p of window.solana.providers){if(p?.isPhantom||p?.isSolflare||p?.isGlow) providers.push(p);}
-+    if(window.glowSolana?.isGlow) providers.push(window.glowSolana);
-+    st.wallet=[...new Set(providers)][0]||null;
-+    el.walletStatus.textContent=st.wallet?'Wallet bulundu.':'Phantom/Solflare/Glow yok.';
-+    el.walletStatus.classList.toggle('danger',!st.wallet);
-+  }
-+
-+  async function connectWallet(){
-+    if(!st.wallet) detectWallet();
-+    if(!st.wallet) return;
-+    try{const r=await st.wallet.connect(); st.walletAddress=(r.publicKey||st.wallet.publicKey).toString(); el.walletStatus.textContent=`CONNECTED: ${st.walletAddress.slice(0,4)}...${st.walletAddress.slice(-4)}`; el.walletStatus.classList.remove('danger');}
-+    catch(e){el.walletStatus.textContent='Wallet bağlantı hatası'; el.walletStatus.classList.add('danger');}
-+  }
-+
-+  function initDb(){
-+    try{
-+      if(SUPABASE_URL.includes('YOUR_PROJECT')||SUPABASE_ANON_KEY.includes('YOUR_SUPABASE')) throw new Error('credentials missing');
-+      st.supabase=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY); st.db=true; el.dbStatus.textContent='DB: online';
-+    }catch(e){st.db=false; el.dbStatus.textContent='DB: offline (local mode)'; el.dbStatus.classList.add('danger');}
-+  }
-+
-+  async function loadTerritories(){
-+    if(!st.db) return;
-+    try{
-+      const {data,error}=await st.supabase.from('territory').select('pixel_key,owner_address,nation_code,price').limit(100000);
-+      if(error) throw error;
-+      for(const row of data) st.territories.set(row.pixel_key,{owner_address:row.owner_address,nation_code:(row.nation_code||'').toLowerCase(),price:row.price||1});
-+      el.dbStatus.textContent=`DB: ${data.length} territory yüklendi`;
-+    }catch(e){el.dbStatus.textContent='DB read fail (local mode)'; el.dbStatus.classList.add('danger');}
-+  }
-+
-+  async function conquer(){
-+    if(!st.selected) return;
-+    const {gx,gy}=st.selected; if(isSea(gx,gy)) return;
-+    const k=key(gx,gy);
-+    const record={pixel_key:k,owner_address:st.walletAddress,nation_code:el.nation.value,price:(st.territories.get(k)?.price||1)};
-+    st.territories.set(k,record); el.popup.style.display='none';
-+    if(st.db){try{const {error}=await st.supabase.from('territory').upsert(record,{onConflict:'pixel_key'}); if(error) throw error;}catch(e){el.dbStatus.textContent='DB write fail (local kept)'; el.dbStatus.classList.add('danger');}}
-+  }
-+
-+  function updateHover(cx,cy){
-+    const w=toWorld(cx,cy); const {gx,gy}=toGrid(w.x,w.y); if(gx<0||gy<0||gx>=GRID_W||gy>=GRID_H) return;
-+    const sea=isSea(gx,gy); el.coords.textContent=`COORD: ${gx},${gy}`; el.terrain.textContent=`TERRAIN: ${sea?'SEA (LOCKED)':'LAND'}`; el.terrain.className=sea?'danger':'ok';
-+  }
-+
-+  function render(){
-+    ctx.fillStyle='#010103'; ctx.fillRect(0,0,canvas.width,canvas.height);
-+    ctx.save(); ctx.translate(st.camera.offsetX,st.camera.offsetY); ctx.scale(st.camera.scale,st.camera.scale);
-+    if(st.mapReady) ctx.drawImage(mask,0,0);
-+
-+    ctx.strokeStyle='rgba(0,255,0,.14)'; ctx.lineWidth=1; ctx.beginPath();
-+    for(let x=0;x<=WORLD_W;x+=SLOT*5){ctx.moveTo(x,0);ctx.lineTo(x,WORLD_H)}
-+    for(let y=0;y<=WORLD_H;y+=SLOT*5){ctx.moveTo(0,y);ctx.lineTo(WORLD_W,y)}
-+    ctx.stroke();
-+
-+    for(const [k,v] of st.territories){const [gx,gy]=k.split(',').map(Number); const x=gx*SLOT,y=gy*SLOT; const fl=st.flags.get((v.nation_code||'').toLowerCase()); if(fl) ctx.drawImage(fl,x,y,SLOT,SLOT); else{ctx.fillStyle='rgba(255,69,0,.85)';ctx.fillRect(x,y,SLOT,SLOT)}}
-+
-+    if(st.selected){ctx.lineWidth=2; ctx.strokeStyle='#ff4500'; ctx.strokeRect(st.selected.gx*SLOT,st.selected.gy*SLOT,SLOT,SLOT)}
-+    ctx.restore(); el.zoom.textContent=`ZOOM: ${st.camera.scale.toFixed(2)}x`;
-+    requestAnimationFrame(render);
-+  }
-+
-+  function bind(){
-+    addEventListener('resize',resize); addEventListener('contextmenu',e=>e.preventDefault());
-+    canvas.addEventListener('mousedown',e=>{if(e.button===2){st.camera.dragging=true;canvas.style.cursor='grabbing';}});
-+    addEventListener('mouseup',()=>{st.camera.dragging=false;canvas.style.cursor='crosshair';});
-+    canvas.addEventListener('mousemove',e=>{if(st.camera.dragging){st.camera.offsetX+=e.movementX;st.camera.offsetY+=e.movementY; el.popup.style.display='none';} if(st.mapReady) updateHover(e.clientX,e.clientY);});
-+    canvas.addEventListener('wheel',e=>{e.preventDefault();const old=st.camera.scale;st.camera.scale=clamp(old*(e.deltaY>0?.9:1.1),st.camera.min,st.camera.max);const wx=(e.clientX-st.camera.offsetX)/old,wy=(e.clientY-st.camera.offsetY)/old;st.camera.offsetX=e.clientX-wx*st.camera.scale;st.camera.offsetY=e.clientY-wy*st.camera.scale;el.popup.style.display='none';},{passive:false});
-+    canvas.addEventListener('click',e=>{if(st.camera.dragging||!st.mapReady) return; const w=toWorld(e.clientX,e.clientY); const {gx,gy}=toGrid(w.x,w.y); if(gx<0||gy<0||gx>=GRID_W||gy>=GRID_H) return; const sea=isSea(gx,gy); st.selected={gx,gy}; const k=key(gx,gy); const price=(st.territories.get(k)?.price||1).toFixed(2); el.popCoord.textContent=`COORD: ${gx},${gy}`; el.popTerrain.textContent=`TERRAIN: ${sea?'SEA':'LAND'}`; el.popPrice.textContent=`PRICE: ${price}`; el.conquerBtn.disabled=sea; el.conquerBtn.textContent=sea?'SEA LOCKED':'CONQUER'; el.popup.style.left=`${Math.min(e.clientX+12,innerWidth-250)}px`; el.popup.style.top=`${Math.min(e.clientY+12,innerHeight-180)}px`; el.popup.style.display='block';});
-+    el.cancelBtn.addEventListener('click',()=>el.popup.style.display='none');
-+    el.conquerBtn.addEventListener('click',conquer);
-+    el.connectBtn.addEventListener('click',connectWallet);
-+  }
-+
-+  window.onload=()=>{
-+    resize(); drawFallback(); bind(); detectWallet(); initDb(); loadMap(); render();
-+    Promise.resolve().then(loadCountries).then(loadTerritories).finally(()=>{el.loading.style.display='none';});
-+  };
-+})();
-+</script>
-+</body>
-+</html>
- 
-EOF
-)
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>THE LAST BORDER | v8.4.8 FINAL</title>
+    <style>
+        body, html { background-color: #000; color: #0f0; font-family: 'Courier New', monospace; margin: 0; padding: 0; overflow: hidden; }
+        #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; }
+        #canvas-container { position: absolute; transform-origin: 0 0; }
+        canvas { background-color: #050505; image-rendering: pixelated; cursor: crosshair; }
+        .panel { position: fixed; z-index: 100; background: rgba(0, 15, 0, 0.9); padding: 10px; border: 1px solid #0f0; box-shadow: 0 0 10px #0f03; }
+        #ui-overlay { top: 15px; left: 15px; width: 220px; }
+        #intel-feed { bottom: 15px; right: 15px; width: 200px; font-size: 11px; }
+        #buy-popup { position: absolute; z-index: 1000; display: none; background: #000; border: 2px solid #ff4500; padding: 10px; color: #fff; }
+        select, button { width: 100%; padding: 5px; margin-top: 5px; background: #000; color: #0f0; border: 1px solid #0f0; font-family: inherit; font-weight: bold; cursor: pointer; }
+        button:hover { background: #0f0; color: #000; }
+    </style>
+</head>
+<body>
+
+    <div id="war-room">
+        <div id="buy-popup">
+            <div id="pop-info" style="font-size: 10px; color: #888;">0, 0</div>
+            <div style="color: #ff4500; margin: 5px 0;">TARGET ACQUIRED</div>
+            <button onclick="handleConquer()" style="border-color: #ff4500; color: #ff4500;">CONQUER</button>
+            <button onclick="closePopup()" style="border-color: #444; color: #444;">CANCEL</button>
+        </div>
+
+        <div id="ui-overlay" class="panel">
+            <div style="font-size: 12px; border-bottom: 1px solid #0f0; margin-bottom: 5px;">COMMAND CENTER</div>
+            <select id="nationSelect"></select>
+            <div style="font-size: 10px; margin-top: 10px; color: #ffff00;">SYSTEM: FREE PAINT MODE</div>
+        </div>
+
+        <div id="intel-feed" class="panel">
+            <div id="coords">COORD: 0, 0</div>
+            <div id="status" style="color: #ff4500;">STATUS: READY</div>
+        </div>
+
+        <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('war-canvas');
+        const ctx = canvas.getContext('2d', { alpha: false });
+        const container = document.getElementById('canvas-container');
+        const popup = document.getElementById('buy-popup');
+        
+        // Stabilizasyon için Sabitler
+        const W = 4000, H = 2000, SLOT = 10;
+        canvas.width = W; canvas.height = H;
+
+        let gridData = JSON.parse(localStorage.getItem('border_v8_final') || '{}');
+        const flagCache = {};
+        let selectedKey = null;
+        let scale = 0.4, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
+        let isDragging = false, startX, startY, hasMoved = false;
+
+        // Harita Yükleme (Güvenilir Kaynak)
+        const mapImg = new Image();
+        mapImg.crossOrigin = "anonymous";
+        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
+        mapImg.onload = () => { render(); };
+
+        function getCanvasPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (W / rect.width);
+            const y = (e.clientY - rect.top) * (H / rect.height);
+            return { x: Math.floor(x), y: Math.floor(y), col: Math.floor(x/SLOT), row: Math.floor(y/SLOT) };
+        }
+
+        function handleConquer() {
+            if (!selectedKey) return;
+            gridData[selectedKey] = document.getElementById('nationSelect').value;
+            localStorage.setItem('border_v8_final', JSON.stringify(gridData));
+            render();
+            closePopup();
+        }
+
+        function closePopup() { popup.style.display = 'none'; }
+
+        function render() {
+            ctx.imageSmoothingEnabled = false;
+            ctx.fillStyle = "#000"; 
+            ctx.fillRect(0,0,W,H);
+
+            if (mapImg.complete) {
+                ctx.drawImage(mapImg, 0, 0, W, H);
+            }
+
+            // Bayraklar
+            for (let key in gridData) {
+                let [c, r] = key.split(',').map(Number);
+                const img = flagCache[gridData[key]];
+                if (img && img.complete) {
+                    ctx.drawImage(img, c*SLOT, r*SLOT, SLOT, SLOT);
+                } else {
+                    ctx.fillStyle = "#0f0";
+                    ctx.fillRect(c*SLOT, r*SLOT, SLOT, SLOT);
+                }
+            }
+
+            // Izgara
+            ctx.beginPath();
+            ctx.strokeStyle = `rgba(0, 255, 0, ${Math.min(0.15, scale/10)})`;
+            ctx.lineWidth = 1/scale;
+            for(let x=0; x<=W; x+=SLOT) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
+            for(let y=0; y<=H; y+=SLOT) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
+            ctx.stroke();
+        }
+
+        // --- Kontroller ---
+        window.onwheel = e => {
+            e.preventDefault();
+            const old = scale;
+            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 40);
+            originX = e.clientX - (e.clientX - originX) * (scale / old);
+            originY = e.clientY - (e.clientY - originY) * (scale / old);
+            updateTransform();
+        };
+
+        canvas.onmousedown = e => { isDragging = true; startX = e.clientX; startY = e.clientY; hasMoved = false; };
+        window.onmousemove = e => {
+            if (isDragging) {
+                originX += e.clientX - startX;
+                originY += e.clientY - startY;
+                startX = e.clientX; startY = e.clientY;
+                hasMoved = true;
+                updateTransform();
+            }
+            const p = getCanvasPos(e);
+            document.getElementById('coords').innerText = `COORD: ${p.col}, ${p.row}`;
+        };
+
+        window.onmouseup = e => {
+            if (isDragging && !hasMoved) {
+                const p = getCanvasPos(e);
+                selectedKey = `${p.col},${p.row}`;
+                popup.style.display = 'block';
+                popup.style.left = e.clientX + 'px';
+                popup.style.top = e.clientY + 'px';
+                document.getElementById('pop-info').innerText = selectedKey;
+            }
+            isDragging = false;
+        };
+
+        function updateTransform() { 
+            container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; 
+            render();
+        }
+
+        async function init() {
+            const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
+            const data = await res.json();
+            const sel = document.getElementById('nationSelect');
+            data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
+                let opt = document.createElement('option');
+                opt.value = c.cca2.toLowerCase(); 
+                opt.textContent = c.name.common.toUpperCase();
+                sel.appendChild(opt);
+                const img = new Image(); img.crossOrigin = "anonymous";
+                img.src = `https://flagcdn.com/w80/${opt.value}.png`;
+                img.onload = () => render();
+            });
+            updateTransform();
+        }
+        init();
+    </script>
+</body>
+</html>
