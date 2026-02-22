@@ -2,364 +2,218 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v8.4.5 CRYSTAL GRID & FREE PAINT</title>
+    <title>THE LAST BORDER | v8.4.6 ULTRA SHARP</title>
     <style>
         body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
         #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
+        
         canvas { 
-            background-color: #0d0d0d; 
+            background-color: #000; 
+            /* Keskinlik için en kritik CSS ayarları */
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
             image-rendering: crisp-edges;
-            image-rendering: pixelated; 
+            image-rendering: pixelated;
             cursor: crosshair; 
         }
-        .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; backdrop-filter: blur(10px); border-radius: 4px; }
+
+        .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.9); padding: 12px; border: 1px solid #ff4500; backdrop-filter: blur(5px); border-radius: 2px; }
+        #pixel-intel { bottom: 20px; right: 20px; width: 220px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; }
+        #buy-popup { position: absolute; z-index: 1000; display: none; background: #000; border: 2px solid #ff4500; padding: 10px; width: 160px; box-shadow: 0 0 15px rgba(255, 69, 0, 0.4); }
+        #ui-overlay { top: 20px; left: 20px; width: 260px; }
+        #wallet-panel { top: 20px; right: 20px; width: 200px; border-color: #00ff00; }
         
-        #pixel-intel { bottom: 20px; right: 20px; width: 250px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; box-shadow: 0 0 10px rgba(0,255,0,0.2); }
-        #buy-popup { 
-            position: absolute; z-index: 1000; display: none;
-            background: #000; border: 2px solid #ff4500; padding: 12px;
-            width: 180px; box-shadow: 0 0 20px rgba(255, 69, 0, 0.5);
-        }
-        .close-pop { position: absolute; top: 2px; right: 5px; cursor: pointer; color: #ff4500; font-size: 14px; }
-        #ui-overlay { top: 20px; left: 20px; width: 280px; }
-        #wallet-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
-        
-        input, select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 8px; width: 100%; box-sizing: border-box; margin-top: 5px; font-family: inherit; }
-        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-weight: bold; border: none; }
-        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff4500; font-weight: bold; }
+        input, select { background: #050505; color: #00ff00; border: 1px solid #00ff00; padding: 6px; width: 100%; box-sizing: border-box; margin-top: 5px; font-size: 12px; }
+        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 8px; font-family: inherit; font-weight: bold; border: none; text-transform: uppercase; }
+        #loading { position: fixed; inset: 0; background: #000; z-index: 1100; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff4500; }
     </style>
 </head>
 <body>
     <div id="loading">
-        <div>CALIBRATING SAT-LINK...</div>
-        <div id="loading-status" style="font-size: 10px; margin-top: 10px; color: #666;">LOADING MAP DATA...</div>
+        <div style="letter-spacing: 5px;">ESTABLISHING UPLINK...</div>
+        <div id="loading-status" style="font-size: 10px; margin-top: 10px; color: #444;">SYNCING GEODATA</div>
     </div>
     
     <div id="war-room">
         <div id="buy-popup">
-            <span class="close-pop" onclick="closePopup()">×</span>
-            <div style="text-align: center;">
-                <div style="color:#ff4500; font-weight:bold; font-size:10px;">CONQUER PIXEL</div>
-                <div id="pop-price" style="color:#00ff00; font-size:14px; margin: 8px 0;">1.00 USD</div>
-                <button style="background: #ff4500; color: #fff;" onclick="handlePurchase(1)">EXECUTE COMMAND</button>
-            </div>
+            <div id="pop-coords" style="color:#666; font-size:9px; margin-bottom:4px;">0,0</div>
+            <div style="color:#ff4500; font-weight:bold; font-size:11px; border-bottom:1px solid #333; padding-bottom:4px;">TARGET ACQUIRED</div>
+            <div id="pop-price" style="color:#00ff00; font-size:14px; margin: 10px 0;">1.00 USD</div>
+            <button style="background: #ff4500; color: #fff;" onclick="handlePurchase(1)">CONQUER</button>
+            <button style="background: #222; color: #666; font-size:9px;" onclick="closePopup()">CANCEL</button>
         </div>
 
         <div id="ui-overlay" class="panel">
-            <h2 style="margin:0; color: #ff4500; font-size: 14px;">WAR COMMAND</h2>
+            <div style="color: #ff4500; font-size: 12px; font-weight: bold; margin-bottom: 8px;">SECTOR CONTROL</div>
             <select id="nationSelect"></select>
-            <div id="state-creator" style="margin-top:10px; border-top:1px solid #444; padding-top:10px;">
-                <input type="text" id="customName" placeholder="NATION NAME">
-                <input type="text" id="customFlag" placeholder="FLAG URL">
-                <button style="background: #00ff00; color: #000;" onclick="handlePurchase(100)">ESTABLISH STATE (100$)</button>
+            <div style="margin-top:10px; border-top:1px solid #222; padding-top:10px;">
+                <input type="text" id="customName" placeholder="NATION TAG">
+                <input type="text" id="customFlag" placeholder="FLAG ASSET URL">
+                <button style="background: #00ff00; color: #000;" onclick="handlePurchase(100)">ESTABLISH STATE</button>
             </div>
         </div>
 
         <div id="wallet-panel" class="panel">
-            <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center; margin-bottom: 5px;">STATUS: OFFLINE</div>
-            <button id="connectBtn" style="background: #00ff00; color: #000;" onclick="connectWallet()">CONNECT WALLET</button>
+            <div id="wallet-status" style="font-size: 10px; color: #ffff00;">SYSTEM: BYPASSED (FREE PAINT)</div>
+            <button id="connectBtn" style="background: #222; color: #444; margin-top:5px;" disabled>LOCKED</button>
         </div>
 
         <div id="pixel-intel" class="panel">
-            <div style="color:#ff4500; font-weight:bold; border-bottom: 1px solid #ff4500; margin-bottom: 5px;">LIVE INTEL FEED</div>
-            <div id="intel-coords">COORD: 0, 0</div>
-            <div id="intel-status" style="margin: 4px 0;">STATUS: READY</div>
-            <div id="intel-price">VALUATION: 1.00 USD</div>
+            <div id="intel-coords">LN: 000 | LT: 000</div>
+            <div id="intel-status">STATUS: UNKNOWN</div>
+            <div id="intel-price">VAL: 1.00 USD</div>
         </div>
 
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
     </div>
 
-    <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
-
     <script>
-        // --- Sabitler ve Global Değişkenler ---
-        const HELIUS_KEY = "ec1aa17e-f949-4ab9-a2b2-0a16a3af2cb2"; 
-        const HELIUS_RPC = `https://mainnet.helius-rpc.com/?api-key=${HELIUS_KEY}`;
-        const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
-        let CURRENT_SOL_USD = 135; // Varsayılan Solana fiyatı
-
         const canvas = document.getElementById('war-canvas');
-        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        const ctx = canvas.getContext('2d', { alpha: false }); // Performans için alpha false
         const container = document.getElementById('canvas-container');
         const popup = document.getElementById('buy-popup');
-        const W = 4000, H = 2000, SLOT = 8.94; // Dünya ve piksel boyutları
+        
+        // Netlik için ızgara boyutunu ve canvası ayarla
+        const W = 4000, H = 2000, SLOT = 10; // Tam sayı (10) kullanarak blur'u engelliyoruz
         canvas.width = W; canvas.height = H;
 
-        let gridData = JSON.parse(localStorage.getItem('border_data_v8') || '{}');
-        let gridPrices = JSON.parse(localStorage.getItem('border_prices_v8') || '{}');
-        const flagCache = {}; // Bayrak görsellerini önbelleğe almak için
-        let walletAddress = null; // Bağlı cüzdan adresi
-        let activeProvider = null; // Aktif cüzdan sağlayıcısı (Phantom/Solflare)
-        let selectedKey = null; // Tıklanan pikselin anahtarı ('col,row')
-        let mapLoaded = false; // Haritanın yüklenip yüklenmediğini gösterir
-        let needsRender = true; // Sadece değişim olduğunda yeniden çizmek için
+        let gridData = JSON.parse(localStorage.getItem('border_data_v8.6') || '{}');
+        const flagCache = {};
+        let selectedKey = null;
+        let mapLoaded = false;
+        let needsRender = true;
 
-        let startX, startY, isDragging = false, dragThreshold = 0; // Sürükleme durumu ve eşiği
-        let scale = 0.5, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2; // Zoom ve Pan değerleri
+        let scale = 0.4, originX = (window.innerWidth - W * scale) / 2, originY = (window.innerHeight - H * scale) / 2;
+        let isDragging = false, startX, startY, moveDist = 0;
 
-        // --- Cüzdan Bağlantısı ---
-        async function connectWallet() {
-            // Cüzdan bağlama kısmı şimdilik pasif, sadece lokal boyama için
-            alert("Wallet connection is temporarily disabled for local painting mode.");
-            document.getElementById('wallet-status').innerText = "STATUS: LOCAL PAINT";
-            document.getElementById('wallet-status').style.color = "#ffff00"; // Sarı renk
-            document.getElementById('connectBtn').style.display = "none";
-            // Normalde burada Solana cüzdanına bağlanır
-            // const provider = window.solflare || window.solana;
-            // if (!provider) return alert("Solana wallet required!");
-            // try {
-            //     const resp = await provider.connect();
-            //     walletAddress = (resp.publicKey || provider.publicKey).toString();
-            //     activeProvider = provider;
-            //     document.getElementById('wallet-status').innerText = "ONLINE: " + walletAddress.slice(0,8);
-            //     document.getElementById('wallet-status').style.color = "#00ff00";
-            //     document.getElementById('connectBtn').style.display = "none";
-            // } catch (err) { console.error(err); }
-        }
-
-        // --- Ekran Koordinatlarını Canvas Koordinatlarına Dönüştürme ---
-        function getCanvasCoords(clientX, clientY) {
-            const rect = canvas.getBoundingClientRect();
-            const x = (clientX - rect.left) * (canvas.width / rect.width);
-            const y = (clientY - rect.top) * (canvas.height / rect.height);
-            return { x, y };
-        }
-
-        // --- Deniz Alanı Kontrolü (Piksel Rengi ile) ---
-        function checkMaritime(x, y) {
-            if (!mapLoaded) return false; // Harita yüklenmediyse deniz kontrolü yapma
-            if (x < 0 || x >= W || y < 0 || y >= H) return true; // Canvas dışı deniz sayılır
-            const pixel = ctx.getImageData(Math.floor(x), Math.floor(y), 1, 1).data;
-            // Harita üzerindeki siyah bölgeler (okyanuslar) için RGB toplamı düşük olacaktır.
-            return (pixel[0] + pixel[1] + pixel[2] < 100); 
-        }
-
-        // --- Canlı Intel Paneli Güncelleme ---
-        function updateIntel(e) {
-            const coords = getCanvasCoords(e.clientX, e.clientY);
-            const col = Math.floor(coords.x / SLOT);
-            const row = Math.floor(coords.y / SLOT);
-            const key = `${col},${row}`;
-            const isOcean = checkMaritime(coords.x, coords.y);
-
-            document.getElementById('intel-coords').innerText = `COORD: ${col}, ${row}`;
-            const statusEl = document.getElementById('intel-status');
-            
-            if (isOcean) {
-                statusEl.innerText = "STATUS: INTERNATIONAL WATERS";
-                statusEl.style.color = "#5555ff";
-            } else {
-                const owner = gridData[key];
-                statusEl.innerText = owner ? `OWNER: ${owner.toUpperCase()}` : "STATUS: UNCLAIMED";
-                statusEl.style.color = owner ? "#ff4500" : "#00ff00";
-            }
-            document.getElementById('intel-price').innerText = `VALUATION: ${(gridPrices[key] || 1.00).toFixed(2)} USD`;
-            return { isOcean, key };
-        }
-
-        // --- Satın Alma / Boyama İşlemi ---
-        async function handlePurchase(type) {
-            // Cüzdan kontrolü şimdilik pasif (geçici boyama izni)
-            // if (!walletAddress) return alert("First connect your wallet!");
-
-            // Lokal boyama izni verildiği için direkt pikseli boyuyoruz
-            if(type !== 100) { // Piksel boyama işlemi
-                gridData[selectedKey] = document.getElementById('nationSelect').value;
-                gridPrices[selectedKey] = (gridPrices[selectedKey] || 1.00) * 1.25; // Fiyatı artır
-                localStorage.setItem('border_data_v8', JSON.stringify(gridData));
-                localStorage.setItem('border_prices_v8', JSON.stringify(gridPrices));
-                needsRender = true; // Yeniden çizim gerekli
-            } else { // Eyalet kurma işlemi (şimdilik sadece UI simülasyonu)
-                const customName = document.getElementById('customName').value;
-                const customFlag = document.getElementById('customFlag').value;
-                if(customName && customFlag) {
-                    // Normalde buraya state oluşturma ve bayrak yükleme mantığı gelir
-                    alert(`STATE ESTABLISHED: ${customName} with flag from ${customFlag}! (Simulated)`);
-                } else {
-                    alert("Please provide both nation name and flag URL to establish a state.");
-                }
-            }
-            closePopup();
-
-            // Normalde burada Solana transaction'ı gönderilir
-            // const price = (type === 100) ? 100 : (gridPrices[selectedKey] || 1.00);
-            // const lamports = Math.floor((price / CURRENT_SOL_USD) * solanaWeb3.LAMPORTS_PER_SOL);
-            // try { /* Solana transfer kodu */ } catch (err) { console.error(err); }
-        }
-
-        // --- Popup Kapatma ---
-        function closePopup() { popup.style.display = 'none'; }
-
-        // --- Mouse Olayları (Pan) ---
-        canvas.addEventListener('mousemove', e => {
-            updateIntel(e); // Intel panelini güncelle
-            if (isDragging) {
-                const dx = e.clientX - startX;
-                const dy = e.clientY - startY;
-                dragThreshold += Math.abs(dx) + Math.abs(dy); // Sürükleme mesafesini takip et
-                originX += dx;
-                originY += dy;
-                startX = e.clientX; startY = e.clientY;
-                updateTransform(); // Transformu güncelle
-                closePopup(); // Popup'ı kapat
-            }
-        });
-
-        canvas.addEventListener('mousedown', e => { 
-            isDragging = true; 
-            dragThreshold = 0; // Sürükleme eşiğini sıfırla
-            startX = e.clientX; 
-            startY = e.clientY; 
-        });
-
-        canvas.addEventListener('mouseup', e => {
-            isDragging = false;
-            if (dragThreshold < 5) { // Eğer fare 5 pikselden az hareket ettiyse tıklama olarak say
-                const info = updateIntel(e);
-                if (info.isOcean) {
-                    alert("MARITIME LAW: No conquest allowed in international waters!");
-                    return;
-                }
-                selectedKey = info.key;
-                popup.style.left = `${e.clientX + 5}px`;
-                popup.style.top = `${e.clientY + 5}px`;
-                document.getElementById('pop-price').innerText = (gridPrices[selectedKey] || 1.00).toFixed(2) + " USD";
-                popup.style.display = 'block';
-            }
-        });
-
-        // --- Transform Güncelleme (Pan & Zoom) ---
-        function updateTransform() { 
-            container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; 
-            needsRender = true; // Transform değiştiğinde yeniden çizim gerekli
-        }
-
-        // --- Mouse Tekerleği Olayı (Zoom) ---
-        window.addEventListener('wheel', e => {
-            e.preventDefault(); // Varsayılan kaydırma davranışını engelle
-            const old = scale;
-            scale = Math.min(Math.max(0.05, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 40); // Zoom limitleri (0.05x - 40x)
-            // Zoom merkezi fare imleci olacak şekilde origin'i ayarla
-            originX = e.clientX - (e.clientX - originX) * (scale / old);
-            originY = e.clientY - (e.clientY - originY) * (scale / old);
-            updateTransform(); // Transformu güncelle
-            closePopup(); // Zoom yaparken popup'ı kapat
-        }, { passive: false }); // Passive: false, preventDefault'un çalışmasını sağlar
-
-        // --- Harita Yükleme ---
-        const mapImg = new Image(); 
+        // --- Harita Yükleme (High-Res) ---
+        const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
-        // Daha yüksek çözünürlüklü ve genel kabul görmüş bir harita URL'i
-        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/4/4b/World_map_blank_gmt.svg';
-        
-        // Siyah Ekran Sigortası (5 saniye içinde yüklenmezse fallback)
-        const loadTimeout = setTimeout(() => { 
-            if (!mapLoaded) {
-                console.warn("Map load timeout - switching to fallback mode.");
-                document.getElementById('loading-status').innerText = "MAP DATA FAILED. USING FALLBACK GRID.";
-                finishLoading(); 
-            }
-        }, 5000);
+        // Çok daha net ve keskin bir dünya haritası
+        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/8/80/World_map_blank_without_borders.svg';
 
         mapImg.onload = () => { mapLoaded = true; finishLoading(); };
-        mapImg.onerror = () => { // Harita yüklenemezse fallback'e geç
-            console.error("Failed to load map image. Using fallback grid mode.");
-            document.getElementById('loading-status').innerText = "MAP DATA FAILED. USING FALLBACK GRID.";
-            finishLoading();
-        };
+        mapImg.onerror = () => finishLoading();
+        setTimeout(() => { if(!mapLoaded) finishLoading(); }, 3500);
 
-        // --- Yükleme Ekranını Kapatma ---
         function finishLoading() {
-            clearTimeout(loadTimeout);
-            needsRender = true;
-            updateTransform();
             document.getElementById('loading').style.display = 'none';
+            updateTransform();
+            requestAnimationFrame(renderLoop);
         }
 
-        // --- Ana Render Döngüsü ---
+        // --- Koordinat ve Deniz Kontrolü ---
+        function getCoords(e) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (e.clientX - rect.left) * (W / rect.width);
+            const y = (e.clientY - rect.top) * (H / rect.height);
+            return { x, y, col: Math.floor(x/SLOT), row: Math.floor(y/SLOT) };
+        }
+
+        function isSea(x, y) {
+            if (!mapLoaded) return false;
+            const p = ctx.getImageData(x, y, 1, 1).data;
+            return (p[0] + p[1] + p[2] < 50); // Siyah bölgeler denizdir
+        }
+
+        // --- Boyama Fonksiyonu (Geçici İzinli) ---
+        function handlePurchase(type) {
+            if (!selectedKey) return;
+            gridData[selectedKey] = document.getElementById('nationSelect').value;
+            localStorage.setItem('border_data_v8.6', JSON.stringify(gridData));
+            needsRender = true;
+            closePopup();
+        }
+
+        function closePopup() { popup.style.display = 'none'; }
+
+        // --- Render Döngüsü (Ultra Net) ---
         function renderLoop() {
             if (needsRender) {
-                ctx.imageSmoothingEnabled = false; // Pixelated görünüm için
+                ctx.imageSmoothingEnabled = false;
+                ctx.fillStyle = "#000";
+                ctx.fillRect(0,0,W,H);
 
-                ctx.clearRect(0, 0, W, H);
+                if (mapLoaded) ctx.drawImage(mapImg, 0, 0, W, H);
 
-                if (mapLoaded) {
-                    ctx.drawImage(mapImg, 0, 0, W, H);
-                } else {
-                    // Harita yüklenmediyse yedek koyu gri bir zemin çiz
-                    ctx.fillStyle = "#1a1a1a";
-                    ctx.fillRect(0,0,W,H);
-                }
-                
-                // --- Bayrakları Çiz ---
+                // Bayraklar
                 for (let key in gridData) {
                     let [c, r] = key.split(',').map(Number);
                     const img = flagCache[gridData[key]];
-                    if(img && img.complete) {
-                        ctx.drawImage(img, c * SLOT, r * SLOT, SLOT, SLOT);
-                    }
+                    if (img && img.complete) ctx.drawImage(img, c*SLOT, r*SLOT, SLOT, SLOT);
+                    else { ctx.fillStyle = "#ff4500"; ctx.fillRect(c*SLOT, r*SLOT, SLOT, SLOT); }
                 }
 
-                // --- GÖZ YORMAYAN VE HER ZAMAN GÖRÜNÜR IZGARA ---
-                // Zoom seviyesine göre şeffaflık ayarı
-                let gridAlpha = Math.min(1, Math.max(0.05, scale / 5)); // Uzaktan çok şeffaf, yaklaştıkça daha belirgin
-                if (!mapLoaded) gridAlpha = Math.max(0.1, gridAlpha); // Fallback modda biraz daha belirgin olsun
-
-                ctx.strokeStyle = `rgba(0, 255, 0, ${gridAlpha})`;
-                ctx.lineWidth = 0.5 / scale; // Zoom yaptıkça çizgi kalınlığı orantılı azalsın
+                // Dinamik Izgara (Askeri Scanline Etkisi)
                 ctx.beginPath();
-                
-                // Izgarayı çiz
-                for(let x = 0; x <= W; x += SLOT) {
-                    ctx.moveTo(x, 0); ctx.lineTo(x, H);
-                }
-                for(let y = 0; y <= H; y += SLOT) {
-                    ctx.moveTo(0, y); ctx.lineTo(W, y);
-                }
+                ctx.strokeStyle = `rgba(0, 255, 0, ${Math.min(0.2, scale/4)})`;
+                ctx.lineWidth = 1 / scale;
+                for(let x=0; x<=W; x+=SLOT) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
+                for(let y=0; y<=H; y+=SLOT) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
                 ctx.stroke();
 
-                needsRender = false; // Çizim tamamlandı
+                needsRender = false;
             }
-            requestAnimationFrame(renderLoop); // Bir sonraki kareyi iste
+            requestAnimationFrame(renderLoop);
         }
 
-        // --- Başlangıç Yükleme Fonksiyonu ---
-        async function init() {
-            try {
-                // Ülke listesi ve bayraklarını çek
-                const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
-                const data = await res.json();
-                const sel = document.getElementById('nationSelect');
-                data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
-                    let opt = document.createElement('option');
-                    opt.value = c.cca2.toLowerCase(); 
-                    opt.textContent = c.name.common.toUpperCase();
-                    sel.appendChild(opt);
-                    
-                    const img = new Image(); 
-                    img.crossOrigin = "anonymous";
-                    img.src = `https://flagcdn.com/w80/${opt.value}.png`;
-                    img.onload = () => { flagCache[opt.value] = img; needsRender = true; }; // Bayrak yüklendiğinde render
-                    img.onerror = () => console.warn(`Failed to load flag for ${c.cca2}`); // Hata durumunda log
-                });
+        // --- Mouse / Zoom Kontrolleri ---
+        window.addEventListener('wheel', e => {
+            const old = scale;
+            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 25);
+            originX = e.clientX - (e.clientX - originX) * (scale / old);
+            originY = e.clientY - (e.clientY - originY) * (scale / old);
+            updateTransform();
+        }, { passive: false });
 
-                // Solana fiyatını çek (şimdilik aktif değil ama kodda duruyor)
-                const pRes = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd');
-                const pData = await pRes.json();
-                if(pData.solana.usd) CURRENT_SOL_USD = pData.solana.usd;
-            } catch(e) { 
-                console.error("Initialization failed:", e); 
-                document.getElementById('loading-status').innerText = "INIT FAILED. CHECK CONSOLE.";
-            }
+        canvas.addEventListener('mousedown', e => { isDragging = true; startX = e.clientX; startY = e.clientY; moveDist = 0; });
+        window.addEventListener('mousemove', e => {
+            const c = getCoords(e);
+            document.getElementById('intel-coords').innerText = `LN: ${c.col.toString().padStart(3,'0')} | LT: ${c.row.toString().padStart(3,'0')}`;
             
-            requestAnimationFrame(renderLoop); // Render döngüsünü başlat
+            if (isDragging) {
+                originX += e.clientX - startX;
+                originY += e.clientY - startY;
+                moveDist += Math.abs(e.clientX - startX) + Math.abs(e.clientY - startY);
+                startX = e.clientX; startY = e.clientY;
+                updateTransform();
+            }
+        });
+
+        window.addEventListener('mouseup', e => {
+            isDragging = false;
+            if (moveDist < 5) {
+                const c = getCoords(e);
+                if (isSea(c.x, c.y)) return;
+                selectedKey = `${c.col},${c.row}`;
+                popup.style.display = 'block';
+                popup.style.left = e.clientX + 'px';
+                popup.style.top = e.clientY + 'px';
+                document.getElementById('pop-coords').innerText = `${c.col}, ${c.row}`;
+            }
+        });
+
+        function updateTransform() { 
+            container.style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; 
+            needsRender = true;
         }
-        
-        init(); // Uygulamayı başlat
-        window.onresize = updateTransform; // Pencere boyutu değiştiğinde transformu güncelle
-        window.oncontextmenu = e => e.preventDefault(); // Sağ tık menüsünü engelle
+
+        // --- Başlangıç ---
+        async function init() {
+            const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
+            const data = await res.json();
+            const sel = document.getElementById('nationSelect');
+            data.sort((a,b)=>a.name.common.localeCompare(b.name.common)).forEach(c => {
+                let opt = document.createElement('option');
+                opt.value = c.cca2.toLowerCase(); opt.textContent = c.name.common.toUpperCase();
+                sel.appendChild(opt);
+                const img = new Image(); img.crossOrigin = "anonymous";
+                img.src = `https://flagcdn.com/w80/${opt.value}.png`;
+                img.onload = () => { flagCache[opt.value] = img; needsRender = true; };
+            });
+        }
+        init();
     </script>
 </body>
 </html>
