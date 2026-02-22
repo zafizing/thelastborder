@@ -2,83 +2,75 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>THE LAST BORDER | v9.0.0</title>
+    <title>THE LAST BORDER | v10.0.0</title>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.min.js"></script>
     <style>
-        body, html { background-color: #020205; color: #d4af37; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+        body, html { background-color: #050505; color: #00ff00; font-family: 'Courier New', monospace; margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
         #war-room { width: 100vw; height: 100vh; position: relative; overflow: hidden; background: #000; }
-        #canvas-container { position: absolute; transform-origin: 0 0; will-change: transform; }
-        canvas { background-color: #0d0d0d; image-rendering: pixelated; cursor: crosshair; }
-        .panel { position: fixed; z-index: 100; background: rgba(5, 5, 15, 0.95); padding: 15px; border: 1px solid #ff4500; border-radius: 4px; }
-        #pixel-intel { bottom: 20px; right: 20px; width: 280px; border: 1px solid #00ff00; color: #00ff00; font-size: 11px; pointer-events: none; }
-        #buy-popup { position: absolute; z-index: 1000; display: none; background: #000; border: 2px solid #ff4500; padding: 12px; width: 180px; box-shadow: 0 0 20px rgba(255, 69, 0, 0.5); }
-        #wallet-panel { top: 20px; right: 20px; width: 220px; border-color: #00ff00; }
+        #canvas-container { position: absolute; transform-origin: 0 0; }
+        canvas { background-color: #0a0a0f; image-rendering: pixelated; cursor: crosshair; border: 1px solid #333; }
+        .panel { position: fixed; z-index: 100; background: rgba(0, 0, 0, 0.9); padding: 12px; border: 1px solid #ff4500; border-radius: 2px; box-shadow: 0 0 10px rgba(255,69,0,0.2); }
+        #pixel-intel { bottom: 20px; right: 20px; width: 220px; border-color: #00ff00; font-size: 11px; }
+        #buy-popup { position: absolute; z-index: 1000; display: none; background: #000; border: 2px solid #ff4500; padding: 15px; width: 180px; text-align: center; }
+        #wallet-panel { top: 20px; right: 20px; width: 200px; border-color: #00ff00; }
         #ui-overlay { top: 20px; left: 20px; width: 200px; }
-        select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 5px; width: 100%; font-family: inherit; }
-        button { width: 100%; padding: 8px; cursor: pointer; margin-top: 5px; font-family: inherit; font-weight: bold; }
-        
-        /* ÖNEMLİ: LOADING EKRANI */
-        #loading { 
-            position: fixed; inset: 0; background: #000; z-index: 9999; 
-            display: flex; flex-direction: column; justify-content: center; align-items: center; 
-            color: #ff4500; font-weight: bold; transition: opacity 1s ease;
-        }
+        select { background: #000; color: #00ff00; border: 1px solid #00ff00; padding: 5px; width: 100%; font-family: inherit; margin-bottom: 5px; }
+        button { width: 100%; padding: 8px; cursor: pointer; font-family: inherit; font-weight: bold; background: #ff4500; color: #000; border: none; }
+        button:hover { background: #ff6a00; }
+        #loading { position: fixed; inset: 0; background: #000; z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; color: #ff4500; }
     </style>
 </head>
 <body>
-    <div id="loading">
-        <div id="load-text">INITIATING GLOBAL PROTOCOL...</div>
-        <button onclick="document.getElementById('loading').style.display='none'" style="width:auto; margin-top:20px; background:#ff4500; color:#fff;">BYPASS LOADING</button>
+    <div id="loading" onclick="this.style.display='none'">
+        <div style="font-size: 20px; letter-spacing: 5px;">INITIALIZING WAR MAP...</div>
+        <div style="font-size: 10px; margin-top: 10px; color: #444;">CLICK ANYWHERE TO BYPASS</div>
     </div>
     
     <div id="war-room">
         <div id="buy-popup">
-            <button onclick="closePopup()" style="background:none; color:#ff4500; text-align:right;">[X]</button>
-            <div id="pop-price" style="color:#00ff00; font-size:16px; margin: 10px 0; text-align:center;">1.00 USD</div>
-            <button id="execBtn" style="background: #ff4500; color: #fff;" onclick="handlePurchase()">CONQUER</button>
+            <div id="pop-price" style="font-size: 18px; margin-bottom: 10px;">1.00 USD</div>
+            <button id="execBtn" onclick="handlePurchase()">CONQUER PIXEL</button>
+            <button onclick="closePopup()" style="background:#333; color:#eee; margin-top:5px;">CANCEL</button>
         </div>
 
-        <div id="ui-overlay" class="panel"><select id="nationSelect"></select></div>
+        <div id="ui-overlay" class="panel">
+            <div style="font-size: 10px; margin-bottom: 5px;">SELECT NATION:</div>
+            <select id="nationSelect"></select>
+        </div>
+
         <div id="wallet-panel" class="panel">
-            <div id="wallet-status" style="font-size: 10px; color: #ff4500; text-align: center;">OFFLINE</div>
-            <button id="connectBtn" style="background: #00ff00; color: #000;" onclick="connectWallet()">CONNECT WALLET</button>
+            <div id="wallet-status" style="font-size: 10px; margin-bottom: 5px; color: #ff4500;">WALLET: DISCONNECTED</div>
+            <button id="connectBtn" onclick="connectWallet()" style="background:#00ff00;">CONNECT SOLANA</button>
         </div>
+
         <div id="pixel-intel" class="panel">
-            <div id="intel-coords">COORD: 0, 0</div>
-            <div id="intel-status">READY</div>
+            <div id="intel-coords">X: 0, Y: 0</div>
+            <div id="intel-status" style="color:#ff4500;">STATUS: SCANNING...</div>
         </div>
+
         <div id="canvas-container"><canvas id="war-canvas"></canvas></div>
     </div>
 
     <script>
         const SB_URL = "https://vwehxkrcsxvgsonhlpms.supabase.co";
         const SB_KEY = "sb_publishable_Xu7IJwTu2SlVVL8gqi0HEQ_iZu4Xtxk";
-        const HELIUS_RPC = "https://mainnet.helius-rpc.com/?api-key=ec1aa17e-f949-4ab9-a2b2-0a16a3af2cb2";
         const MASTER_WALLET = "3j8YDgyhk8Jj8XWdQJ6hpstvq9XQ2BWN8U8cT2qMCAQo";
 
         let supabase, walletAddress, activeProvider, selectedKey;
         let globalTerritory = {}, flagCache = {};
-        let scale = 0.5, originX = 0, originY = 0;
+        let scale = 0.8, originX = 50, originY = 50;
         let isDragging = false, moved = false, startX, startY;
 
         const canvas = document.getElementById('war-canvas');
         const ctx = canvas.getContext('2d');
-        const W = 4000, H = 2000, SLOT = 8.94;
+        const W = 3000, H = 1500, SLOT = 10; // Daha stabil boyutlar
         canvas.width = W; canvas.height = H;
-
-        // --- ZORLA KAPATMA FONKSİYONU ---
-        function forceOpen() { 
-            const loader = document.getElementById('loading');
-            if(loader) loader.style.display = 'none'; 
-        }
 
         async function init() {
             try {
-                if (window.supabase) {
-                    supabase = window.supabase.createClient(SB_URL, SB_KEY);
-                    syncFromDB(); 
-                }
+                supabase = window.supabase.createClient(SB_URL, SB_KEY);
+                syncFromDB();
                 
                 const res = await fetch('https://restcountries.com/v3.1/all?fields=name,cca2');
                 const countries = await res.json();
@@ -90,47 +82,60 @@
                     img.src = `https://flagcdn.com/w80/${opt.value}.png`;
                     img.onload = () => { flagCache[opt.value] = img; render(); };
                 });
-            } catch (e) { console.error("Init failed but continuing..."); }
-            
-            // 5 saniye sonra veritabanı ne durumda olursa olsun perdeyi aç
-            setTimeout(forceOpen, 5000);
+            } catch (e) { console.error(e); }
+            setTimeout(() => { document.getElementById('loading').style.display = 'none'; }, 2000);
         }
 
         async function syncFromDB() {
-            if(!supabase) return;
-            try {
-                const { data, error } = await supabase.from('territory').select('*');
-                if (data) {
-                    globalTerritory = {};
-                    data.forEach(item => { globalTerritory[item.pixel_key] = item; });
-                    render();
-                }
-            } catch (e) { console.error("DB Sync fail"); }
+            const { data } = await supabase.from('territory').select('*');
+            if (data) {
+                globalTerritory = {};
+                data.forEach(item => { globalTerritory[item.pixel_key] = item; });
+                render();
+            }
         }
 
         const mapImg = new Image();
         mapImg.crossOrigin = "anonymous";
-        mapImg.src = 'https://upload.wikimedia.org/wikipedia/commons/e/ec/World_map_blank_without_borders.svg';
-        mapImg.onload = () => {
-            originX = (window.innerWidth - W * scale) / 2;
-            originY = (window.innerHeight - H * scale) / 2;
-            updateTransform();
-            render();
-            forceOpen(); // Harita geldiği an aç
+        // Harita linkini daha güvenilir bir kaynakla değiştirdim
+        mapImg.src = 'https://raw.githubusercontent.com/holtzy/D3-graph-gallery/master/img/backgroundimg/world.png';
+        mapImg.onload = () => { render(); };
+        mapImg.onerror = () => { 
+            console.log("Map failed, using fallback grid");
+            render(); 
         };
 
         function render() {
-            ctx.clearRect(0, 0, W, H);
-            ctx.drawImage(mapImg, 0, 0, W, H);
+            ctx.fillStyle = "#0a0a0f";
+            ctx.fillRect(0, 0, W, H);
+            
+            // Harita varsa çiz, yoksa sadece ızgara bırak
+            if (mapImg.complete && mapImg.naturalWidth !== 0) {
+                ctx.drawImage(mapImg, 0, 0, W, H);
+            }
+
+            // Izgara (Grid) çizimi
+            ctx.strokeStyle = "rgba(0, 255, 0, 0.05)";
+            ctx.beginPath();
+            for(let x=0; x<W; x+=SLOT*5) { ctx.moveTo(x,0); ctx.lineTo(x,H); }
+            for(let y=0; y<H; y+=SLOT*5) { ctx.moveTo(0,y); ctx.lineTo(W,y); }
+            ctx.stroke();
+
+            // Sahiplenilmiş toprakları çiz
             for (let key in globalTerritory) {
                 const [c, r] = key.split(',').map(Number);
                 const code = globalTerritory[key].nation_code;
-                if (flagCache[code]) ctx.drawImage(flagCache[code], c * SLOT, r * SLOT, SLOT, SLOT);
+                if (flagCache[code]) {
+                    ctx.drawImage(flagCache[code], c * SLOT, r * SLOT, SLOT, SLOT);
+                } else {
+                    ctx.fillStyle = "rgba(255, 69, 0, 0.5)";
+                    ctx.fillRect(c * SLOT, r * SLOT, SLOT, SLOT);
+                }
             }
         }
 
-        function updateTransform() { 
-            document.getElementById('canvas-container').style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`; 
+        function updateTransform() {
+            document.getElementById('canvas-container').style.transform = `translate(${originX}px, ${originY}px) scale(${scale})`;
         }
 
         canvas.addEventListener('mousedown', e => { isDragging = true; moved = false; startX = e.clientX; startY = e.clientY; closePopup(); });
@@ -138,13 +143,15 @@
             const rect = canvas.getBoundingClientRect();
             const x = (e.clientX - rect.left) * (W / rect.width);
             const y = (e.clientY - rect.top) * (H / rect.height);
-            document.getElementById('intel-coords').innerText = `COORD: ${Math.floor(x/SLOT)}, ${Math.floor(y/SLOT)}`;
+            document.getElementById('intel-coords').innerText = `X: ${Math.floor(x/SLOT)}, Y: ${Math.floor(y/SLOT)}`;
+            
             if (isDragging) {
                 originX += e.clientX - startX; originY += e.clientY - startY;
                 startX = e.clientX; startY = e.clientY;
                 moved = true; updateTransform();
             }
         });
+        
         canvas.addEventListener('mouseup', e => {
             isDragging = false;
             if (!moved) {
@@ -160,7 +167,7 @@
 
         window.addEventListener('wheel', e => {
             const old = scale;
-            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 30);
+            scale = Math.min(Math.max(0.1, scale * (e.deltaY < 0 ? 1.1 : 0.9)), 20);
             originX = e.clientX - (e.clientX - originX) * (scale / old);
             originY = e.clientY - (e.clientY - originY) * (scale / old);
             updateTransform();
@@ -168,16 +175,17 @@
 
         async function connectWallet() {
             const provider = window.solana || window.solflare;
-            if(!provider) return alert("Cüzdan yükle!");
+            if(!provider) return alert("Install Phantom!");
             const resp = await provider.connect();
             walletAddress = (resp.publicKey || provider.publicKey).toString();
             activeProvider = provider;
-            document.getElementById('wallet-status').innerText = walletAddress.slice(0,6) + "...";
+            document.getElementById('wallet-status').innerText = "CONNECTED: " + walletAddress.slice(0,4) + "..";
             document.getElementById('connectBtn').style.display = "none";
         }
 
         function closePopup() { document.getElementById('buy-popup').style.display = 'none'; }
-
+        
+        updateTransform();
         init();
     </script>
 </body>
